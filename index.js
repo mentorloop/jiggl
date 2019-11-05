@@ -21,15 +21,6 @@ const Doc = require('./lib/doc');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
 
-async function getLastMonthSummary() {
-  const dates = lastMonth();
-  return getSummary(dates);
-}
-
-async function getYesterdayDetailed() {
-  const yesterday = lastBusinessDay();
-  return getDetailed(yesterday);
-}
 
 const cleanItems = items =>
   items.map(({ title, time, percent }) => ({
@@ -48,7 +39,7 @@ const printReport = (title, report, numItems = 10) => {
   console.log('\n\n\n');
 };
 
-async function processSummary(report) {
+async function processSummary(report, opts) {
   const issues = (await getIssuesForItems(report.items)).filter(
     item => item.issueKey,
   );
@@ -61,12 +52,17 @@ async function processSummary(report) {
 
   process.stdout.write('\033c');
 
+  const dateRange = opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
+  const title = `Toggl Summary ${dateRange}`;
+  console.log(title);
+  console.log('\n\n');
+
   printReport('Toggl Projects', projects, 0);
   printReport('Epic breakdown', epics, 0);
   printReport('Features', features, 10);
 }
 
-async function processDetailed(report) {
+async function processDetailed(report, opts) {
   // fetch issues
   for (let userSummary of report.items) {
     const itemsWithIssues = await getIssuesForItems(userSummary.items);
@@ -75,7 +71,9 @@ async function processDetailed(report) {
 
   const doc = new Doc();
 
-  const title = `Toggl Summary ${lastBusinessDay().since}`;
+  const dateRange = opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
+  const title = `Toggl Summary ${dateRange}`;
+
   doc.log(title);
   doc.log(underline(title));
   doc.linebreak();
@@ -114,25 +112,27 @@ async function processDetailed(report) {
 }
 
 async function runLastMonth() {
-  const report = await getLastMonthSummary();
-  return processSummary(report);
+  const dates = lastMonth();
+  const report = await getSummary(dates);
+  return processSummary(report, dates);
 }
 
 async function runYesterday() {
-  const report = await getYesterdayDetailed();
-  return processDetailed(report);
+  const yesterday = lastBusinessDay();
+  const report = await getDetailed(yesterday);
+  return processDetailed(report, yesterday);
 }
 
 async function runSummary() {
   const dates = await promptForDates();
   const report = await getSummary(dates);
-  return processSummary(report);
+  return processSummary(report, dates);
 }
 
 async function runDetailed() {
   const dates = await promptForDates();
   const report = await getDetailed(dates);
-  return processDetailed(report);
+  return processDetailed(report, dates);
 }
 
 const dateQuestion = {
