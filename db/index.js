@@ -13,6 +13,7 @@ const { ignoreUniqueErrors } = require('./util');
 const sequelize = new Sequelize(DB_DATABASE, DB_USER, DB_PASSWORD, {
   dialect: DB_DIALECT,
   storage: DB_STORAGE, // only applies to sqlite
+  logging: false,
 });
 
 
@@ -57,6 +58,14 @@ const TogglEntry = sequelize.define('togglentry', {
   project: {
     type: Sequelize.TEXT,
     allowNull: true,
+  },
+  issueKey: {
+    type: Sequelize.TEXT,
+    allowNull: true,
+  },
+  issueId: {
+    type: Sequelize.INTEGER,
+    allowNull: true,
   }
 });
 
@@ -84,20 +93,50 @@ const TogglProject = sequelize.define('togglproject', {
   },
 }) ;
 
+const JiraIssue = sequelize.define('jiraissue', {
+  id: {
+    type: Sequelize.INTEGER,
+    allowNull: false,
+    primaryKey: true,
+  },
+  key: {
+    type: Sequelize.TEXT,
+    unique: true,
+  },
+  created: {
+    type: Sequelize.DATE,
+    allowNull: false,
+  },
+  updated: {
+    type: Sequelize.DATE,
+    allowNull: true,
+  },
+  summary: {
+    type: Sequelize.TEXT,
+    allowNull: false,
+  }
+  // => projectid
+  // => resolutionid
+  // => assigneeId
+  // => statusId
+  // => reporterId
+  // => parentid
+  // => impactId
+});
 
 // togglentry.uid => toggleusers.id
-TogglUser.hasMany(TogglEntry, {
+TogglEntry.belongsTo(TogglUser, {
   foreignKey: 'uid'
 });
 
 // togglentry.pid => toggleprojects.id
-TogglProject.hasMany(TogglEntry, {
+TogglEntry.belongsTo(TogglProject, {
   foreignKey: 'pid',
 });
 
-
-sequelize.sync({ force: true }).then(() => {
-  console.log('sequelize synced');
+// togglentry.issueId => jiraissues.id
+TogglEntry.belongsTo(JiraIssue, {
+  foreignKey: 'issueId',
 });
 
 
@@ -110,10 +149,46 @@ const createTogglUser = props => TogglUser.create(props)
   .catch(ignoreUniqueErrors)
 
 
+// get toggl entries that have an issue key
+// but aren't yet linked to an issue
+const getTogglEntriesWithIssueKey = () =>
+  TogglEntry.findAll({
+    where: {
+      issueKey: {
+        [Sequelize.Op.ne]: null,
+      },
+      issueId: null,
+    },
+    attributes: ['id', 'issueKey'],
+  })
+  .then(entries => entries.map(e => e.get()))
+
+// link toggleentries to a jiraissue
+const updateTogglEntryIssue = (togglEntryIds, issueId) =>
+  TogglEntry.update({
+    issueId,
+  }, {
+    where: {
+      id: {
+        [Sequelize.Op.in]: [].concat(togglEntryIds),
+      },
+    },
+  });
+
+
+sequelize.sync({ force: false }).catch((error) => {
+  console.log('Error with sequelize.sync()');
+  throw error;
+});
+
+
 module.exports = {
   TogglEntry,
   TogglUser,
   TogglProject,
+  JiraIssue,
   createTogglProject,
   createTogglUser,
+  getTogglEntriesWithIssueKey,
+  updateTogglEntryIssue,
 };

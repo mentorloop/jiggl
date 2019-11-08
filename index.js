@@ -1,8 +1,10 @@
+const _ = require('lodash');
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
 
 const {
   getIssuesForItems,
+  getIssueFromServer,
   replaceIssuesWithParents,
   replaceIssuesWithEpics,
 } = require('./lib/jira');
@@ -18,6 +20,14 @@ const {
   formatTogglDate,
 } = require('./lib/util');
 const Doc = require('./lib/doc');
+const {
+  getTogglEntriesWithIssueKey,
+  JiraIssue,
+  updateTogglEntryIssue,
+} = require('./db');
+const {
+  ignoreUniqueErrors
+} = require('./db/util');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
 
@@ -124,8 +134,8 @@ async function runYesterday() {
 }
 
 async function runYesterdayIntoDB() {
-  const yesterday = lastBusinessDay();
-  const report = await getDetailed(yesterday);
+  const dates = lastMonth();
+  const report = await getDetailed(dates);
   return saveReportItems(report);
 }
 
@@ -139,6 +149,37 @@ async function runDetailed() {
   const dates = await promptForDates();
   const report = await getDetailed(dates).then(parseDetailedReport);
   return processDetailed(report, dates);
+}
+
+
+// fetch jira issues for all the togglentries
+// that aren't associated with an issue yet.
+async function pullJiraIssues() {
+  // get the issue keys.
+  // for each, hit the API
+  // create the issue
+  // link the togglentry back to the issue
+
+  const entries = await getTogglEntriesWithIssueKey();
+  const groupedByKey = _.groupBy(entries, (e) => e.issueKey);
+  const issueKeys = Object.keys(groupedByKey);
+
+  const promises = issueKeys.map(getIssueFromServer);
+  const issues = await Promise.all(promises);
+
+  await Promise.all(issues.map((issue) =>
+    // todo - should we update here?
+    JiraIssue.create(issue, {
+      fields: Object.keys(JiraIssue.tableAttributes),
+    }).catch(ignoreUniqueErrors)
+  ));
+
+  await Promise.all(issueKeys.map((issueKey, i) => {
+    const entryIds = groupedByKey[issueKey].map(entry => entry.id);
+    return updateTogglEntryIssue(entryIds, issues[i].id);
+  }));
+
+  console.log('done');
 }
 
 const dateQuestion = {
@@ -171,7 +212,14 @@ inquirer
   .prompt([
     {
       type: 'list',
-      choices: ['Yesterday into DB', 'Yesterday', 'Last Month', 'Summary', 'Detailed'],
+      choices: [
+        'Yesterday into DB',
+        'Pull issues',
+        'Yesterday',
+        'Last Month',
+        'Summary',
+        'Detailed'
+      ],
       name: 'report',
       message: 'what report do you want to run?',
     },
@@ -180,6 +228,8 @@ inquirer
     switch (report) {
       case 'Yesterday into DB':
         return runYesterdayIntoDB();
+      case 'Pull issues':
+        return pullJiraIssues();
       case 'Last Month':
         return runLastMonth();
       case 'Yesterday':
