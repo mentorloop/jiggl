@@ -6,7 +6,7 @@ const {
   replaceIssuesWithParents,
   replaceIssuesWithEpics,
 } = require('./lib/jira');
-const { getSummary, getDetailed } = require('./lib/toggl');
+const { getSummary, getDetailed, parseDetailedReport, saveReportItems } = require('./lib/toggl');
 const { editReport } = require('./lib/reports');
 const {
   lastBusinessDay,
@@ -119,8 +119,14 @@ async function runLastMonth() {
 
 async function runYesterday() {
   const yesterday = lastBusinessDay();
-  const report = await getDetailed(yesterday);
+  const report = await getDetailed(yesterday).then(parseDetailedReport);
   return processDetailed(report, yesterday);
+}
+
+async function runYesterdayIntoDB() {
+  const yesterday = lastBusinessDay();
+  const report = await getDetailed(yesterday);
+  return saveReportItems(report);
 }
 
 async function runSummary() {
@@ -131,7 +137,7 @@ async function runSummary() {
 
 async function runDetailed() {
   const dates = await promptForDates();
-  const report = await getDetailed(dates);
+  const report = await getDetailed(dates).then(parseDetailedReport);
   return processDetailed(report, dates);
 }
 
@@ -165,13 +171,15 @@ inquirer
   .prompt([
     {
       type: 'list',
-      choices: ['Yesterday', 'Last Month', 'Summary', 'Detailed'],
+      choices: ['Yesterday into DB', 'Yesterday', 'Last Month', 'Summary', 'Detailed'],
       name: 'report',
       message: 'what report do you want to run?',
     },
   ])
   .then(({ report }) => {
     switch (report) {
+      case 'Yesterday into DB':
+        return runYesterdayIntoDB();
       case 'Last Month':
         return runLastMonth();
       case 'Yesterday':
