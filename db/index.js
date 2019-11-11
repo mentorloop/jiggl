@@ -71,6 +71,8 @@ const TogglEntry = sequelize.define('togglentry', {
     type: Sequelize.INTEGER,
     allowNull: true,
   }
+}, {
+  timestamps: false,
 });
 
 const TogglUser = sequelize.define('toggluser', {
@@ -82,6 +84,8 @@ const TogglUser = sequelize.define('toggluser', {
     type: Sequelize.TEXT,
     allowNull: false,
   },
+}, {
+  timestamps: false,
 });
 
 const TogglProject = sequelize.define('togglproject', {
@@ -93,7 +97,9 @@ const TogglProject = sequelize.define('togglproject', {
     type: Sequelize.TEXT,
     allowNull: false,
   },
-}) ;
+}, {
+  timestamps: false,
+});
 
 const JiraIssue = sequelize.define('jiraissue', {
   id: {
@@ -142,6 +148,8 @@ const JiraIssue = sequelize.define('jiraissue', {
   // => assigneeId
   // => statusId
   // => reporterId
+}, {
+  timestamps: false,
 });
 
 const JiraIssueType = sequelize.define('jiraissuetype', {
@@ -162,6 +170,8 @@ const JiraIssueType = sequelize.define('jiraissuetype', {
     type: Sequelize.BOOLEAN,
     allowNull: false,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraProject = sequelize.define('jiraprojects', {
@@ -173,6 +183,8 @@ const JiraProject = sequelize.define('jiraprojects', {
     type: Sequelize.TEXT,
     unique: true,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraImpact = sequelize.define('jiraimpacts', {
@@ -184,6 +196,8 @@ const JiraImpact = sequelize.define('jiraimpacts', {
     type: Sequelize.TEXT,
     allowNull: false,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraComponent = sequelize.define('jiracomponents', {
@@ -195,6 +209,8 @@ const JiraComponent = sequelize.define('jiracomponents', {
     type: Sequelize.TEXT,
     allowNull: false,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraDriver = sequelize.define('jiradrivers', {
@@ -206,6 +222,8 @@ const JiraDriver = sequelize.define('jiradrivers', {
     type: Sequelize.TEXT,
     allowNull: false,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraUserType = sequelize.define('jirausertypes', {
@@ -217,6 +235,8 @@ const JiraUserType = sequelize.define('jirausertypes', {
     type: Sequelize.TEXT,
     allowNull: false,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraClient = sequelize.define('jiraclients', {
@@ -230,6 +250,8 @@ const JiraClient = sequelize.define('jiraclients', {
     allowNull: false,
     unique: true,
   },
+}, {
+  timestamps: false,
 });
 
 const JiraProductLabel = sequelize.define('jiraproductlabels', {
@@ -243,6 +265,8 @@ const JiraProductLabel = sequelize.define('jiraproductlabels', {
     allowNull: false,
     unique: true,
   },
+}, {
+  timestamps: false,
 });
 
 // togglentry.uid => toggleusers.id
