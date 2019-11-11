@@ -18,16 +18,17 @@ const {
   mergeItems,
   compose,
   formatTogglDate,
+  sequential,
 } = require('./lib/util');
 const Doc = require('./lib/doc');
 const {
+  createJiraIssue,
   getTogglEntriesWithIssueKey,
-  JiraIssue,
+  getJiraIssuesWithEpics,
   updateTogglEntryIssue,
+  updateJiraIssueEpic,
+  forceSyncDB,
 } = require('./db');
-const {
-  ignoreUniqueErrors
-} = require('./db/util');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
 
@@ -134,7 +135,7 @@ async function runYesterday() {
 }
 
 async function runYesterdayIntoDB() {
-  const dates = lastMonth();
+  const dates = await promptForDates();
   const report = await getDetailed(dates);
   return saveReportItems(report);
 }
@@ -164,22 +165,54 @@ async function pullJiraIssues() {
   const groupedByKey = _.groupBy(entries, (e) => e.issueKey);
   const issueKeys = Object.keys(groupedByKey);
 
-  const promises = issueKeys.map(getIssueFromServer);
-  const issues = await Promise.all(promises);
+  // fetch 10 at a time from the server
+  const chunkedIssueKeys = _.chunk(issueKeys, 10);
 
-  await Promise.all(issues.map((issue) =>
-    // todo - should we update here?
-    JiraIssue.create(issue, {
-      fields: Object.keys(JiraIssue.tableAttributes),
-    }).catch(ignoreUniqueErrors)
-  ));
+  const issues = await sequential(chunkedIssueKeys, async (keys) => {
+    return Promise.all(keys.map(getIssueFromServer))
+  });
+
+  await sequential(issues, async (issue) => {
+    // todo - what should we do here?
+    // server fetch doesn't always work.
+    // do we log it? or put an error on the parent?
+    if (!issue) return false;
+
+    return createJiraIssue(issue);
+  });
 
   await Promise.all(issueKeys.map((issueKey, i) => {
-    const entryIds = groupedByKey[issueKey].map(entry => entry.id);
-    return updateTogglEntryIssue(entryIds, issues[i].id);
+    if (issues[i]) {
+      const entryIds = groupedByKey[issueKey].map(entry => entry.id);
+      return updateTogglEntryIssue(entryIds, issues[i].id);
+    }
   }));
+}
 
-  console.log('done');
+async function pullJiraEpics() {
+  const issues = await getJiraIssuesWithEpics();
+  const groupedByKey = _.groupBy(issues, (i) => i.epicKey);
+  const epicKeys = Object.keys(groupedByKey);
+
+  const chunkedEpicKeys = _.chunk(epicKeys, 10);
+
+  const epics = await sequential(chunkedEpicKeys, async (keys) => {
+    return Promise.all(keys.map(getIssueFromServer))
+  });
+
+  await sequential(epics, async (epic) => {
+    // todo - what to do here? see above in pullJiraIssues()
+    if (!epic) return false;
+
+    return createJiraIssue(epic);
+  });
+
+  await Promise.all(epicKeys.map((epicKey, i) => {
+    if (epics[i]) {
+      const issueIds = groupedByKey[epicKey].map(issue => issue.id);
+      return updateJiraIssueEpic(issueIds, epics[i].id);
+    }
+  }));
 }
 
 const dateQuestion = {
@@ -215,10 +248,12 @@ inquirer
       choices: [
         'Yesterday into DB',
         'Pull issues',
+        'Pull Epics',
         'Yesterday',
         'Last Month',
         'Summary',
-        'Detailed'
+        'Detailed',
+        'Sync DB',
       ],
       name: 'report',
       message: 'what report do you want to run?',
@@ -230,6 +265,8 @@ inquirer
         return runYesterdayIntoDB();
       case 'Pull issues':
         return pullJiraIssues();
+      case 'Pull Epics':
+       return pullJiraEpics();
       case 'Last Month':
         return runLastMonth();
       case 'Yesterday':
@@ -238,6 +275,8 @@ inquirer
         return runSummary();
       case 'Detailed':
         return runDetailed();
+      case 'Sync DB':
+        return forceSyncDB();
       default:
         return;
     }
