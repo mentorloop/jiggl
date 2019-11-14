@@ -1,17 +1,26 @@
 const _ = require('lodash');
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
+const subDays = require('date-fns/subDays');
 
+const {
+  DAILY_TIMESTAMP
+} = require('./lib/config');
 const {
   getIssuesForItems,
   getIssueFromServer,
   replaceIssuesWithParents,
   replaceIssuesWithEpics,
 } = require('./lib/jira');
-const { getSummary, getDetailed, parseDetailedReport, saveReportItems } = require('./lib/toggl');
+const {
+  getSummary,
+  getDetailed,
+  parseDetailedReport,
+  saveReportItems,
+  parseEntriesForDetailed,
+} = require('./lib/toggl');
 const { editReport } = require('./lib/reports');
 const {
-  lastBusinessDay,
   lastMonth,
   twoDP,
   useIssueTitles,
@@ -24,6 +33,7 @@ const Doc = require('./lib/doc');
 const {
   createJiraIssue,
   getTogglEntriesWithIssueKey,
+  getTogglEntriesBetween,
   getJiraIssuesWithEpics,
   updateTogglEntryIssue,
   updateJiraIssueEpic,
@@ -31,7 +41,6 @@ const {
 } = require('./db');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
-
 
 const cleanItems = items =>
   items.map(({ title, time, percent }) => ({
@@ -54,7 +63,10 @@ async function processSummary(report, opts) {
   const issues = (await getIssuesForItems(report.items)).filter(
     item => item.issueKey,
   );
-  const issuesWithParents = compose(mergeItems, useIssueTitles)(await replaceIssuesWithParents(issues));
+  const issuesWithParents = compose(
+    mergeItems,
+    useIssueTitles,
+  )(await replaceIssuesWithParents(issues));
   const epicIssues = mergeItems(await replaceIssuesWithEpics(issues));
 
   const projects = await editReport(report.projects);
@@ -63,7 +75,8 @@ async function processSummary(report, opts) {
 
   process.stdout.write('\033c');
 
-  const dateRange = opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
+  const dateRange =
+    opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
   const title = `Toggl Summary ${dateRange}`;
   console.log(title);
   console.log('\n\n');
@@ -73,36 +86,31 @@ async function processSummary(report, opts) {
   printReport('Features', features, 10);
 }
 
-async function processDetailed(report, opts) {
-  // fetch issues
-  for (let userSummary of report.items) {
-    const itemsWithIssues = await getIssuesForItems(userSummary.items);
-    userSummary.items = itemsWithIssues;
-  }
-
+async function processDetailed(entries, opts) {
   const doc = new Doc();
 
-  const dateRange = opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
+  const dateRange =
+    opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
   const title = `Toggl Summary ${dateRange}`;
 
   doc.log(title);
   doc.log(underline(title));
   doc.linebreak();
   const usersWithProblems = new Set();
-  report.items.forEach(userSummary => {
-    const title = `${userSummary.user}: ${userSummary.time}`;
+  entries.forEach(userSummary => {
+    const title = `${userSummary.user}: ${userSummary.total}`;
     doc.log(title);
     doc.log(underline(title, '-'));
-    useIssueTitles(userSummary.items).forEach(item => {
-      const title = item.issue
-        ? `[${item.issue.key}] ${item.issue.summary}`
-        : `* ${item.title || 'NO DESCRIPTION'}`;
-      const { project, time } = item;
+    useIssueTitles(userSummary.entries).forEach(entry => {
+      const title = entry.jiraissue
+        ? `[${entry.jiraissue.key}] ${entry.jiraissue.summary}`
+        : `* ${entry.description || 'NO DESCRIPTION'}`;
+      const { project, hours } = entry;
       const projectName = project
         ? project.replace(/^Dev - /, '')
         : 'NO PROJECT';
-      doc.log(`${title} - ${twoDP(time)} (${projectName})`);
-      if (!project || !item.title) {
+      doc.log(`${title} - ${twoDP(hours)} (${projectName})`);
+      if (!project || !entry.description) {
         usersWithProblems.add(userSummary.user);
       }
     });
@@ -128,13 +136,22 @@ async function runLastMonth() {
   return processSummary(report, dates);
 }
 
-async function runYesterday() {
-  const yesterday = lastBusinessDay();
-  const report = await getDetailed(yesterday).then(parseDetailedReport);
-  return processDetailed(report, yesterday);
+async function runDaily() {
+  const { date: day } = await promptForDates(['date']);
+  const dateString = `${day}T${DAILY_TIMESTAMP}`;
+  const date = new Date(dateString);
+  const dayBeforeDate = subDays(date, 1);
+  const entries = await getTogglEntriesBetween(dayBeforeDate, date);
+
+  const parsed = parseEntriesForDetailed(entries);
+
+  return processDetailed(parsed, {
+    since: day,
+    until: day,
+  });
 }
 
-async function runYesterdayIntoDB() {
+async function pullTogglEntries() {
   const dates = await promptForDates();
   const report = await getDetailed(dates);
   return saveReportItems(report);
@@ -152,7 +169,6 @@ async function runDetailed() {
   return processDetailed(report, dates);
 }
 
-
 // fetch jira issues for all the togglentries
 // that aren't associated with an issue yet.
 async function pullJiraIssues() {
@@ -162,17 +178,17 @@ async function pullJiraIssues() {
   // link the togglentry back to the issue
 
   const entries = await getTogglEntriesWithIssueKey();
-  const groupedByKey = _.groupBy(entries, (e) => e.issueKey);
+  const groupedByKey = _.groupBy(entries, e => e.issueKey);
   const issueKeys = Object.keys(groupedByKey);
 
   // fetch 10 at a time from the server
   const chunkedIssueKeys = _.chunk(issueKeys, 10);
 
-  const issues = await sequential(chunkedIssueKeys, async (keys) => {
-    return Promise.all(keys.map(getIssueFromServer))
+  const issues = await sequential(chunkedIssueKeys, async keys => {
+    return Promise.all(keys.map(getIssueFromServer));
   });
 
-  await sequential(issues, async (issue) => {
+  await sequential(issues, async issue => {
     // todo - what should we do here?
     // server fetch doesn't always work.
     // do we log it? or put an error on the parent?
@@ -181,38 +197,42 @@ async function pullJiraIssues() {
     return createJiraIssue(issue);
   });
 
-  await Promise.all(issueKeys.map((issueKey, i) => {
-    if (issues[i]) {
-      const entryIds = groupedByKey[issueKey].map(entry => entry.id);
-      return updateTogglEntryIssue(entryIds, issues[i].id);
-    }
-  }));
+  await Promise.all(
+    issueKeys.map((issueKey, i) => {
+      if (issues[i]) {
+        const entryIds = groupedByKey[issueKey].map(entry => entry.id);
+        return updateTogglEntryIssue(entryIds, issues[i].id);
+      }
+    }),
+  );
 }
 
 async function pullJiraEpics() {
   const issues = await getJiraIssuesWithEpics();
-  const groupedByKey = _.groupBy(issues, (i) => i.epicKey);
+  const groupedByKey = _.groupBy(issues, i => i.epicKey);
   const epicKeys = Object.keys(groupedByKey);
 
   const chunkedEpicKeys = _.chunk(epicKeys, 10);
 
-  const epics = await sequential(chunkedEpicKeys, async (keys) => {
-    return Promise.all(keys.map(getIssueFromServer))
+  const epics = await sequential(chunkedEpicKeys, async keys => {
+    return Promise.all(keys.map(getIssueFromServer));
   });
 
-  await sequential(epics, async (epic) => {
+  await sequential(epics, async epic => {
     // todo - what to do here? see above in pullJiraIssues()
     if (!epic) return false;
 
     return createJiraIssue(epic);
   });
 
-  await Promise.all(epicKeys.map((epicKey, i) => {
-    if (epics[i]) {
-      const issueIds = groupedByKey[epicKey].map(issue => issue.id);
-      return updateJiraIssueEpic(issueIds, epics[i].id);
-    }
-  }));
+  await Promise.all(
+    epicKeys.map((epicKey, i) => {
+      if (epics[i]) {
+        const issueIds = groupedByKey[epicKey].map(issue => issue.id);
+        return updateJiraIssueEpic(issueIds, epics[i].id);
+      }
+    }),
+  );
 }
 
 const dateQuestion = {
@@ -222,38 +242,39 @@ const dateQuestion = {
   format: ['yyyy', '-', 'mm', '-', 'dd'],
 };
 
-const promptForDates = () =>
+const promptForDates = (names = ['since', 'until']) =>
   inquirer
-    .prompt([
-      {
+    .prompt(
+      names.map(name => ({
         ...dateQuestion,
-        name: 'since',
-        message: 'Since',
-      },
-      {
-        ...dateQuestion,
-        name: 'until',
-        message: 'Until',
-      },
-    ])
-    .then(({ since, until }) => ({
-      since: formatTogglDate(since),
-      until: formatTogglDate(until),
-    }));
+        name,
+        message: name,
+      })),
+    )
+    .then(dates =>
+      names.reduce(
+        (acc, date) => ({
+          ...acc,
+          [date]: formatTogglDate(dates[date]),
+        }),
+        {},
+      ),
+    );
 
 inquirer
   .prompt([
     {
       type: 'list',
       choices: [
-        'Yesterday into DB',
-        'Pull issues',
+        'Pull Toggl Entries',
+        'Pull Jira Issues',
         'Pull Epics',
-        'Yesterday',
+        'Pull Toggl Groups',
+        'Daily',
         'Last Month',
         'Summary',
         'Detailed',
-        'Sync DB',
+        'Force-Sync DB',
       ],
       name: 'report',
       message: 'what report do you want to run?',
@@ -261,21 +282,23 @@ inquirer
   ])
   .then(({ report }) => {
     switch (report) {
-      case 'Yesterday into DB':
-        return runYesterdayIntoDB();
-      case 'Pull issues':
+      case 'Pull Toggl Entries':
+        return pullTogglEntries();
+      case 'Pull Jira Issues':
         return pullJiraIssues();
       case 'Pull Epics':
-       return pullJiraEpics();
+        return pullJiraEpics();
+      case 'Pull Toggl Groups':
+        return pullTogglGroups();
+      case 'Daily':
+        return runDaily();
       case 'Last Month':
         return runLastMonth();
-      case 'Yesterday':
-        return runYesterday();
       case 'Summary':
         return runSummary();
       case 'Detailed':
         return runDetailed();
-      case 'Sync DB':
+      case 'Force-Sync DB':
         return forceSyncDB();
       default:
         return;
