@@ -15,425 +15,122 @@ const sequelize = new Sequelize(DB_DATABASE, DB_USER, DB_PASSWORD, {
   logging: false,
 });
 
-const TogglEntry = sequelize.define(
-  'togglentry',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    pid: {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-    },
-    tid: {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-    },
-    uid: {
-      type: Sequelize.INTEGER,
-      allowNull: false,
-    },
-    description: {
-      type: Sequelize.TEXT,
-      allowNull: true,
-    },
-    start: {
-      type: Sequelize.DATE,
-      allowNull: false,
-    },
-    end: {
-      type: Sequelize.DATE,
-      allowNull: false,
-    },
-    dur: {
-      type: Sequelize.INTEGER,
-      allowNull: false,
-    },
-    hours: {
-      type: Sequelize.FLOAT,
-      allowNull: false,
-    },
-    user: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-    project: {
-      type: Sequelize.TEXT,
-      allowNull: true,
-    },
-    issueKey: {
-      type: Sequelize.TEXT,
-      allowNull: true,
-    },
-    issueId: {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
+const models = {
+  TogglEntry: sequelize.import(__dirname + '/models/togglEntry'),
+  TogglUser: sequelize.import(__dirname + '/models/togglUser'),
+  TogglProject: sequelize.import(__dirname + '/models/togglProject'),
+  TogglGroup: sequelize.import(__dirname + '/models/togglGroup'),
+  JiraIssue: sequelize.import(__dirname + '/models/jiraIssue'),
+  JiraIssueType: sequelize.import(__dirname + '/models/jiraIssueType'),
+  JiraProject: sequelize.import(__dirname + '/models/jiraProject'),
+  JiraImpact: sequelize.import(__dirname + '/models/jiraImpact'),
+  JiraComponent: sequelize.import(__dirname + '/models/jiraComponent'),
+  JiraDriver: sequelize.import(__dirname + '/models/jiraDriver'),
+  JiraUserType: sequelize.import(__dirname + '/models/jiraUserType'),
+  JiraClient: sequelize.import(__dirname + '/models/jiraClient'),
+  JiraProductLabel: sequelize.import(__dirname + '/models/jiraProductLabel'),
+};
 
-const TogglUser = sequelize.define(
-  'toggluser',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    user: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const TogglProject = sequelize.define(
-  'togglproject',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    project: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const TogglGroup = sequelize.define(
-  'togglgroup',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    wid: {
-      type: Sequelize.INTEGER,
-      allowNull: false,
-    },
-    name: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraIssue = sequelize.define(
-  'jiraissue',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    key: {
-      type: Sequelize.TEXT,
-      unique: true,
-    },
-    created: {
-      type: Sequelize.DATE,
-      allowNull: false,
-    },
-    updated: {
-      type: Sequelize.DATE,
-      allowNull: true,
-    },
-    summary: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-    issueTypeId: {
-      type: Sequelize.INTEGER,
-      allowNull: false,
-    },
-    projectId: {
-      type: Sequelize.INTEGER,
-      allowNull: false,
-    },
-    impactId: {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-    },
-    epicKey: {
-      type: Sequelize.TEXT,
-      allowNull: true,
-    },
-    epicId: {
-      type: Sequelize.INTEGER,
-      allowNull: true,
-    },
-
-    // => parentId
-    // => resolutionid
-    // => assigneeId
-    // => statusId
-    // => reporterId
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraIssueType = sequelize.define(
-  'jiraissuetype',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    // todo - can probably drop this tbh
-    description: {
-      type: Sequelize.TEXT,
-      allowNull: true,
-    },
-    name: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-    subtask: {
-      type: Sequelize.BOOLEAN,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraProject = sequelize.define(
-  'jiraprojects',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    key: {
-      type: Sequelize.TEXT,
-      unique: true,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraImpact = sequelize.define(
-  'jiraimpacts',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    value: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraComponent = sequelize.define(
-  'jiracomponents',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    name: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraDriver = sequelize.define(
-  'jiradrivers',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    value: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraUserType = sequelize.define(
-  'jirausertypes',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      primaryKey: true,
-    },
-    value: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraClient = sequelize.define(
-  'jiraclients',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    value: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-      unique: true,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
-
-const JiraProductLabel = sequelize.define(
-  'jiraproductlabels',
-  {
-    id: {
-      type: Sequelize.INTEGER,
-      autoIncrement: true,
-      primaryKey: true,
-    },
-    value: {
-      type: Sequelize.TEXT,
-      allowNull: false,
-      unique: true,
-    },
-  },
-  {
-    timestamps: false,
-  },
-);
 
 // togglentry.uid => toggleusers.id
-TogglEntry.belongsTo(TogglUser, {
+models.TogglEntry.belongsTo(models.TogglUser, {
   foreignKey: 'uid',
 });
 
 // togglentry.pid => toggleprojects.id
-TogglEntry.belongsTo(TogglProject, {
+models.TogglEntry.belongsTo(models.TogglProject, {
   foreignKey: 'pid',
 });
 
 // togglentry.issueId => jiraissues.id
-TogglEntry.belongsTo(JiraIssue, {
+models.TogglEntry.belongsTo(models.JiraIssue, {
   foreignKey: 'issueId',
 });
 
 // jiraissue.issueTypeId => jiraissuetype.id
-JiraIssue.belongsTo(JiraIssueType, {
+models.JiraIssue.belongsTo(models.JiraIssueType, {
   foreignKey: 'issueTypeId',
 });
 
-JiraIssue.belongsTo(JiraProject, {
+models.JiraIssue.belongsTo(models.JiraProject, {
   foreignKey: 'projectId',
 });
 
-JiraIssue.belongsTo(JiraImpact, {
+models.JiraIssue.belongsTo(models.JiraImpact, {
   foreignKey: 'impactId',
 });
 
-JiraIssue.belongsTo(JiraIssue, {
+models.JiraIssue.belongsTo(models.JiraIssue, {
   foreignKey: 'epicId',
 });
 
 // jiraissue <=> jiraissuecomponents <=> jiracomponent
-JiraIssue.belongsToMany(JiraComponent, {
+models.JiraIssue.belongsToMany(models.JiraComponent, {
   through: 'jiraissuecomponents',
   foreignKey: 'issueId',
   as: 'components',
 });
-JiraComponent.belongsToMany(JiraIssue, {
+models.JiraComponent.belongsToMany(models.JiraIssue, {
   through: 'jiraissuecomponents',
   foreignKey: 'componentId',
   as: 'issues',
 });
 
 // jiraissue <=> jiraissuedrivers <=> jiradrivers
-JiraIssue.belongsToMany(JiraDriver, {
+models.JiraIssue.belongsToMany(models.JiraDriver, {
   through: 'jiraissuedrivers',
   foreignKey: 'issueId',
   as: 'drivers',
 });
-JiraDriver.belongsToMany(JiraIssue, {
+models.JiraDriver.belongsToMany(models.JiraIssue, {
   through: 'jiraissuedrivers',
   foreignKey: 'driverId',
   as: 'issues',
 });
 
 // jiraissue <=> jiraissueclients <=> jiraclients
-JiraIssue.belongsToMany(JiraClient, {
+models.JiraIssue.belongsToMany(models.JiraClient, {
   through: 'jiraissueclients',
   foreignKey: 'issueId',
   as: 'clients',
 });
-JiraClient.belongsToMany(JiraIssue, {
+models.JiraClient.belongsToMany(models.JiraIssue, {
   through: 'jiraissueclients',
   foreignKey: 'clientId',
   as: 'issues',
 });
 
 // jiraissue <=> jiraproductlabels <=> jiracomponent
-JiraIssue.belongsToMany(JiraProductLabel, {
+models.JiraIssue.belongsToMany(models.JiraProductLabel, {
   through: 'jiraissueproductlabels',
   foreignKey: 'issueId',
   as: 'productLabels',
 });
-JiraProductLabel.belongsToMany(JiraIssue, {
+models.JiraProductLabel.belongsToMany(models.JiraIssue, {
   through: 'jiraissueproductlabels',
   foreignKey: 'productLabelId',
   as: 'issues',
 });
 
 // jiraissue <=> jiraissueusertypes <=> jirausertypes
-JiraIssue.belongsToMany(JiraUserType, {
+models.JiraIssue.belongsToMany(models.JiraUserType, {
   through: 'jiraissueusertypes',
   foreignKey: 'issueId',
   as: 'userTypes',
 });
-JiraUserType.belongsToMany(JiraIssue, {
+models.JiraUserType.belongsToMany(models.JiraIssue, {
   through: 'jiraissueusertypes',
   foreignKey: 'userTypeId',
   as: 'issues',
 });
 
 // toggluser <=> togglgroupusers <=> togglgroup
-TogglGroup.belongsToMany(TogglUser, {
+models.TogglGroup.belongsToMany(models.TogglUser, {
   through: 'togglgroupusers',
   foreignKey: 'groupId',
   as: 'users',
 });
-TogglUser.belongsToMany(TogglGroup, {
+models.TogglUser.belongsToMany(models.TogglGroup, {
   through: 'togglgroupusers',
   foreignKey: 'userId',
   as: 'groups',
@@ -442,7 +139,7 @@ TogglUser.belongsToMany(TogglGroup, {
 // get toggl entries that have an issue key
 // but aren't yet linked to an issue
 const getTogglEntriesWithIssueKey = () =>
-  TogglEntry.findAll({
+  models.TogglEntry.findAll({
     where: {
       issueKey: {
         [Sequelize.Op.ne]: null,
@@ -455,7 +152,7 @@ const getTogglEntriesWithIssueKey = () =>
 // get all jira issues that have an epic key
 // but aren't yet linked to an epic
 const getJiraIssuesWithEpics = () =>
-  JiraIssue.findAll({
+  models.JiraIssue.findAll({
     where: {
       epicKey: {
         [Sequelize.Op.ne]: null,
@@ -465,9 +162,9 @@ const getJiraIssuesWithEpics = () =>
     attributes: ['id', 'epicKey'],
   }).then(issues => issues.map(i => i.get()));
 
-// link toggleentries to a jiraissue
+// link togglentries to a jiraissue
 const updateTogglEntryIssue = (togglEntryIds, issueId) =>
-  TogglEntry.update(
+  models.TogglEntry.update(
     {
       issueId,
     },
@@ -481,7 +178,7 @@ const updateTogglEntryIssue = (togglEntryIds, issueId) =>
   );
 
 const updateJiraIssueEpic = (jiraIssueIds, epicId) =>
-  JiraIssue.update(
+  models.JiraIssue.update(
     {
       epicId,
     },
@@ -499,7 +196,7 @@ const forceSyncDB = () => sequelize.sync({ force: true });
 // get all Toggl Entries between 2 timestamps.
 // left join to jiraissue.
 const getTogglEntriesBetween = (from, to) =>
-  TogglEntry.findAll({
+  models.TogglEntry.findAll({
     where: {
       start: {
         [Sequelize.Op.between]: [from, to],
@@ -507,7 +204,7 @@ const getTogglEntriesBetween = (from, to) =>
     },
     include: [
       {
-        model: JiraIssue,
+        model: models.JiraIssue,
       },
     ],
   }).then(entries =>
@@ -518,17 +215,17 @@ const getTogglEntriesBetween = (from, to) =>
   );
 
 const createJiraIssue = async issue => {
-  await JiraIssueType.create(issue.issueType).catch(ignoreUniqueErrors);
+  await models.JiraIssueType.create(issue.issueType).catch(ignoreUniqueErrors);
 
-  await JiraProject.create(issue.project).catch(ignoreUniqueErrors);
+  await models.JiraProject.create(issue.project).catch(ignoreUniqueErrors);
 
   if (issue.impact) {
-    await JiraImpact.create(issue.impact).catch(ignoreUniqueErrors);
+    await models.JiraImpact.create(issue.impact).catch(ignoreUniqueErrors);
   }
 
   const drivers = await Promise.all(
     issue.drivers.map(({ id, value }) =>
-      JiraDriver.findOrCreate({
+      models.JiraDriver.findOrCreate({
         where: {
           id,
         },
@@ -542,7 +239,7 @@ const createJiraIssue = async issue => {
 
   const components = await Promise.all(
     issue.components.map(({ id, name }) =>
-      JiraComponent.findOrCreate({
+      models.JiraComponent.findOrCreate({
         where: {
           id,
         },
@@ -556,7 +253,7 @@ const createJiraIssue = async issue => {
 
   const productLabels = await Promise.all(
     issue.productLabels.map(productLabel =>
-      JiraProductLabel.findOrCreate({
+      models.JiraProductLabel.findOrCreate({
         where: {
           value: productLabel,
         },
@@ -566,7 +263,7 @@ const createJiraIssue = async issue => {
 
   const userTypes = await Promise.all(
     issue.userTypes.map(({ id, value }) =>
-      JiraUserType.findOrCreate({
+      models.JiraUserType.findOrCreate({
         where: {
           id,
         },
@@ -580,7 +277,7 @@ const createJiraIssue = async issue => {
 
   const clients = await Promise.all(
     issue.clients.map(client =>
-      JiraClient.findOrCreate({
+      models.JiraClient.findOrCreate({
         where: {
           value: client,
         },
@@ -588,11 +285,11 @@ const createJiraIssue = async issue => {
     ),
   );
 
-  JiraIssue.findOrCreate({
+  models.JiraIssue.findOrCreate({
     where: {
       id: issue.id,
     },
-    defaults: definedFieldsOnly(issue, JiraIssue),
+    defaults: definedFieldsOnly(issue, models.JiraIssue),
   })
     .then(getModel)
     .then(savedIssue =>
@@ -611,19 +308,7 @@ sequelize.sync({ force: false }).catch(error => {
 });
 
 module.exports = {
-  TogglEntry,
-  TogglUser,
-  TogglProject,
-  TogglGroup,
-  JiraIssue,
-  JiraIssueType,
-  JiraProject,
-  JiraImpact,
-  JiraDriver,
-  JiraClient,
-  JiraComponent,
-  JiraProductLabel,
-  JiraUserType,
+  models,
   getTogglEntriesWithIssueKey,
   getTogglEntriesBetween,
   getJiraIssuesWithEpics,

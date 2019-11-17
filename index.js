@@ -18,6 +18,7 @@ const {
   parseDetailedReport,
   saveReportItems,
   parseEntriesForDetailed,
+  updateTogglGroups,
 } = require('./lib/toggl');
 const { editReport } = require('./lib/reports');
 const {
@@ -289,7 +290,7 @@ inquirer
       case 'Pull Epics':
         return pullJiraEpics();
       case 'Pull Toggl Groups':
-        return pullTogglGroups();
+        return updateTogglGroups();
       case 'Daily':
         return runDaily();
       case 'Last Month':
