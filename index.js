@@ -32,6 +32,7 @@ const {
 } = require('./lib/util');
 const Doc = require('./lib/doc');
 const {
+  models,
   createJiraIssue,
   getTogglEntriesWithIssueKey,
   getTogglEntriesBetween,
@@ -137,12 +138,21 @@ async function runLastMonth() {
   return processSummary(report, dates);
 }
 
+const getGroupUids = (id) => models.TogglGroup.findOne({
+  where: {
+    id,
+  },
+  include: ['users']
+}).then(group => group.users.map(user => user.get('id')));
+
 async function runDaily() {
   const { date: day } = await promptForDates(['date']);
   const dateString = `${day}T${DAILY_TIMESTAMP}`;
   const date = new Date(dateString);
   const dayBeforeDate = subDays(date, 1);
-  const entries = await getTogglEntriesBetween(dayBeforeDate, date);
+  const { group } = await promptForTogglGroup();
+  const uids = group ? await getGroupUids(group) : null;
+  const entries = await getTogglEntriesBetween(dayBeforeDate, date, uids);
 
   const parsed = parseEntriesForDetailed(entries);
 
@@ -261,6 +271,22 @@ const promptForDates = (names = ['since', 'until']) =>
         {},
       ),
     );
+
+const promptForTogglGroup = () =>
+  models.TogglGroup.findAll()
+  .then((groups) => inquirer.prompt([
+    {
+      name: 'group',
+      type: 'list',
+      choices: [{
+          name: 'none',
+          value: null,
+        }].concat(groups.map(({ name, id }) => ({
+          name,
+          value: id,
+        }))),
+      message: 'filter by toggl group?',
+    }]));
 
 inquirer
   .prompt([

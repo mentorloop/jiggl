@@ -162,6 +162,7 @@ const getJiraIssuesWithEpics = () =>
     attributes: ['id', 'epicKey'],
   }).then(issues => issues.map(i => i.get()));
 
+
 // link togglentries to a jiraissue
 const updateTogglEntryIssue = (togglEntryIds, issueId) =>
   models.TogglEntry.update(
@@ -195,9 +196,14 @@ const forceSyncDB = () => sequelize.sync({ force: true });
 
 // get all Toggl Entries between 2 timestamps.
 // left join to jiraissue.
-const getTogglEntriesBetween = (from, to) =>
+const getTogglEntriesBetween = (from, to, uids = null) =>
   models.TogglEntry.findAll({
     where: {
+      ...(uids ? {
+        uid: {
+          [Sequelize.Op.in]: uids,
+        },
+      } : {}),
       start: {
         [Sequelize.Op.between]: [from, to],
       },
