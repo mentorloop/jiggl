@@ -1,14 +1,13 @@
-const _ = require('lodash');
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
 const subDays = require('date-fns/subDays');
 
 const {
-  DAILY_TIMESTAMP
+  DAY_START
 } = require('./lib/config');
 const {
   getIssuesForItems,
-  getIssueFromServer,
+
   replaceIssuesWithParents,
   replaceIssuesWithEpics,
 } = require('./lib/jira');
@@ -16,7 +15,6 @@ const {
   getSummary,
   getDetailed,
   parseDetailedReport,
-  saveReportItems,
   parseEntriesForDetailed,
   updateTogglGroups,
 } = require('./lib/toggl');
@@ -28,19 +26,22 @@ const {
   mergeItems,
   compose,
   formatTogglDate,
-  sequential,
+
+  dateToUtc,
 } = require('./lib/util');
 const Doc = require('./lib/doc');
 const {
+  connection,
   models,
-  createJiraIssue,
-  getTogglEntriesWithIssueKey,
   getTogglEntriesBetween,
-  getJiraIssuesWithEpics,
-  updateTogglEntryIssue,
-  updateJiraIssueEpic,
   forceSyncDB,
 } = require('./db');
+
+const {
+  pullTogglEntries,
+  pullJiraIssues,
+  pullJiraEpics,
+} = require('./lib/methods');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
 
@@ -146,9 +147,9 @@ const getGroupUids = (id) => models.TogglGroup.findOne({
 }).then(group => group.users.map(user => user.get('id')));
 
 async function runDaily() {
+  // date is config.DAY_START in config.TIMEZONE
   const { date: day } = await promptForDates(['date']);
-  const dateString = `${day}T${DAILY_TIMESTAMP}`;
-  const date = new Date(dateString);
+  const date = dateToUtc(`${day}T${DAY_START}`);
   const dayBeforeDate = subDays(date, 1);
   const { group } = await promptForTogglGroup();
   const uids = group ? await getGroupUids(group) : null;
@@ -162,11 +163,13 @@ async function runDaily() {
   });
 }
 
-async function pullTogglEntries() {
+
+// prompt for a date range and pull toggl entries
+async function pullTogglEntriesForDates() {
   const dates = await promptForDates();
-  const report = await getDetailed(dates);
-  return saveReportItems(report);
+  return pullTogglEntries(dates);
 }
+
 
 async function runSummary() {
   const dates = await promptForDates();
@@ -180,71 +183,7 @@ async function runDetailed() {
   return processDetailed(report, dates);
 }
 
-// fetch jira issues for all the togglentries
-// that aren't associated with an issue yet.
-async function pullJiraIssues() {
-  // get the issue keys.
-  // for each, hit the API
-  // create the issue
-  // link the togglentry back to the issue
 
-  const entries = await getTogglEntriesWithIssueKey();
-  const groupedByKey = _.groupBy(entries, e => e.issueKey);
-  const issueKeys = Object.keys(groupedByKey);
-
-  // fetch 10 at a time from the server
-  const chunkedIssueKeys = _.chunk(issueKeys, 10);
-
-  const issues = await sequential(chunkedIssueKeys, async keys => {
-    return Promise.all(keys.map(getIssueFromServer));
-  });
-
-  await sequential(issues, async issue => {
-    // todo - what should we do here?
-    // server fetch doesn't always work.
-    // do we log it? or put an error on the parent?
-    if (!issue) return false;
-
-    return createJiraIssue(issue);
-  });
-
-  await Promise.all(
-    issueKeys.map((issueKey, i) => {
-      if (issues[i]) {
-        const entryIds = groupedByKey[issueKey].map(entry => entry.id);
-        return updateTogglEntryIssue(entryIds, issues[i].id);
-      }
-    }),
-  );
-}
-
-async function pullJiraEpics() {
-  const issues = await getJiraIssuesWithEpics();
-  const groupedByKey = _.groupBy(issues, i => i.epicKey);
-  const epicKeys = Object.keys(groupedByKey);
-
-  const chunkedEpicKeys = _.chunk(epicKeys, 10);
-
-  const epics = await sequential(chunkedEpicKeys, async keys => {
-    return Promise.all(keys.map(getIssueFromServer));
-  });
-
-  await sequential(epics, async epic => {
-    // todo - what to do here? see above in pullJiraIssues()
-    if (!epic) return false;
-
-    return createJiraIssue(epic);
-  });
-
-  await Promise.all(
-    epicKeys.map((epicKey, i) => {
-      if (epics[i]) {
-        const issueIds = groupedByKey[epicKey].map(issue => issue.id);
-        return updateJiraIssueEpic(issueIds, epics[i].id);
-      }
-    }),
-  );
-}
 
 const dateQuestion = {
   type: 'datetime',
@@ -288,46 +227,54 @@ const promptForTogglGroup = () =>
       message: 'filter by toggl group?',
     }]));
 
-inquirer
-  .prompt([
-    {
-      type: 'list',
-      choices: [
-        'Pull Toggl Entries',
-        'Pull Jira Issues',
-        'Pull Epics',
-        'Pull Toggl Groups',
-        'Daily',
-        'Last Month',
-        'Summary',
-        'Detailed',
-        'Force-Sync DB',
-      ],
-      name: 'report',
-      message: 'what report do you want to run?',
-    },
-  ])
-  .then(({ report }) => {
-    switch (report) {
-      case 'Pull Toggl Entries':
-        return pullTogglEntries();
-      case 'Pull Jira Issues':
-        return pullJiraIssues();
-      case 'Pull Epics':
-        return pullJiraEpics();
-      case 'Pull Toggl Groups':
-        return updateTogglGroups();
-      case 'Daily':
-        return runDaily();
-      case 'Last Month':
-        return runLastMonth();
-      case 'Summary':
-        return runSummary();
-      case 'Detailed':
-        return runDetailed();
-      case 'Force-Sync DB':
-        return forceSyncDB();
-      default:
-        return;
-    }
-  });
+
+
+const begin = async () => {
+  await connection;
+  inquirer
+    .prompt([
+      {
+        type: 'list',
+        choices: [
+          'Pull Toggl Entries',
+          'Pull Jira Issues',
+          'Pull Epics',
+          'Pull Toggl Groups',
+          'Daily',
+          'Last Month',
+          'Summary',
+          'Detailed',
+          'Force-Sync DB',
+        ],
+        name: 'report',
+        message: 'what report do you want to run?',
+      },
+    ])
+    .then(({ report }) => {
+      switch (report) {
+        case 'Pull Toggl Entries':
+          return pullTogglEntriesForDates();
+        case 'Pull Jira Issues':
+          return pullJiraIssues();
+        case 'Pull Epics':
+          return pullJiraEpics();
+        case 'Pull Toggl Groups':
+          return updateTogglGroups();
+        case 'Daily':
+          return runDaily();
+        case 'Last Month':
+          return runLastMonth();
+        case 'Summary':
+          return runSummary();
+        case 'Detailed':
+          return runDetailed();
+        case 'Force-Sync DB':
+          return forceSyncDB();
+        default:
+          return;
+      }
+    });
+}
+
+begin();
+
