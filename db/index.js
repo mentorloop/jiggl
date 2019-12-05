@@ -2,14 +2,16 @@ const Sequelize = require('sequelize');
 
 const {
   DB_DATABASE,
-  DB_USER,
+  DB_USERNAME,
   DB_PASSWORD,
   DB_DIALECT,
   DB_STORAGE,
+  DB_HOST,
 } = require('../lib/config');
 const { ignoreUniqueErrors, definedFieldsOnly, getModel } = require('./util');
 
-const sequelize = new Sequelize(DB_DATABASE, DB_USER, DB_PASSWORD, {
+const sequelize = new Sequelize(DB_DATABASE, DB_USERNAME, DB_PASSWORD, {
+  host: DB_HOST,
   dialect: DB_DIALECT,
   storage: DB_STORAGE, // only applies to sqlite
   logging: false,
@@ -220,6 +222,15 @@ const getTogglEntriesBetween = (from, to, uids = null) =>
     })),
   );
 
+const removeTogglEntriesBetween = (from, to) =>
+  models.TogglEntry.destroy({
+    where: {
+      start: {
+        [Sequelize.Op.between]: [from, to],
+      }
+    },
+  });
+
 const createJiraIssue = async issue => {
   await models.JiraIssueType.create(issue.issueType).catch(ignoreUniqueErrors);
 
@@ -308,15 +319,23 @@ const createJiraIssue = async issue => {
     );
 };
 
-sequelize.sync({ force: false }).catch(error => {
+
+const connect = () => Promise.resolve().then(() => {
+  console.log('Connecting to database...');
+  return sequelize.sync({ force: false });
+}).catch(error => {
   console.log('Error with sequelize.sync()');
   throw error;
 });
 
+const connection = connect();
+
 module.exports = {
+  connection,
   models,
   getTogglEntriesWithIssueKey,
   getTogglEntriesBetween,
+  removeTogglEntriesBetween,
   getJiraIssuesWithEpics,
   updateTogglEntryIssue,
   updateJiraIssueEpic,
