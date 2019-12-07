@@ -9,6 +9,7 @@ const {
   DB_HOST,
 } = require('../lib/config');
 const { ignoreUniqueErrors, definedFieldsOnly, getModel } = require('./util');
+const log = require('../lib/log');
 
 const sequelize = new Sequelize(DB_DATABASE, DB_USERNAME, DB_PASSWORD, {
   host: DB_HOST,
@@ -321,10 +322,12 @@ const createJiraIssue = async issue => {
 
 
 const connect = () => Promise.resolve().then(() => {
-  console.log('Connecting to database...');
-  return sequelize.sync({ force: false });
+  log.info('Connecting to database...');
+  return sequelize.sync({ force: false })
+    .then(() => log.info('Connected to database'))
 }).catch(error => {
-  console.log('Error with sequelize.sync()');
+  log.info('Error with sequelize.sync()');
+  log.error(error);
   throw error;
 });
 

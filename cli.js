@@ -24,6 +24,7 @@ const {
   pullJiraIssues,
   pullJiraEpics,
 } = require('./lib/methods');
+const log = require('./lib/log');
 
 
 const showtime = async () => {
@@ -31,22 +32,22 @@ const showtime = async () => {
   await connection;
 
   // sync the toggl groups
-  console.log('syncing toggl groups');
+  log.info('syncing toggl groups');
   await updateTogglGroups();
 
   // pull the last week
-  console.log('pulling toggl entries');
+  log.info('pulling toggl entries');
   await pullTogglEntries(lastSevenDays());
 
   // pull missing jira issues
-  console.log('pulling jira issues');
+  log.info('pulling jira issues');
   await pullJiraIssues();
 
   // pull missing jira epics
-  console.log('pulling jira epics');
+  log.info('pulling jira epics');
   await pullJiraEpics();
 
-  console.log('done :)');
+  log.info('done :)');
 };
 
 
