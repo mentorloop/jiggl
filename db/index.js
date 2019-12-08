@@ -181,6 +181,18 @@ const updateTogglEntryIssue = (togglEntryIds, issueId) =>
     },
   );
 
+const flagEntriesWithBadIssueKey = (togglEntryIds) =>
+  models.TogglEntry.update({
+    error: 'BAD_ISSUE_KEY',
+  }, {
+      where: {
+        id: {
+          [Sequelize.Op.in]: [].concat(togglEntryIds),
+        },
+      },
+    },
+);
+
 const updateJiraIssueEpic = (jiraIssueIds, epicId) =>
   models.JiraIssue.update(
     {
@@ -341,6 +353,7 @@ module.exports = {
   removeTogglEntriesBetween,
   getJiraIssuesWithEpics,
   updateTogglEntryIssue,
+  flagEntriesWithBadIssueKey,
   updateJiraIssueEpic,
   createJiraIssue,
   forceSyncDB,

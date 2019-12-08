@@ -54,6 +54,10 @@
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    error: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    }
   }, {
     sequelize,
     timestamps: false,
