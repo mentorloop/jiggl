@@ -1,6 +1,6 @@
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
-const subDays = require('date-fns/subDays');
+const { addDays } = require('date-fns');
 
 const {
   DAY_START
@@ -149,11 +149,11 @@ const getGroupUids = (id) => models.TogglGroup.findOne({
 async function runDaily() {
   // date is config.DAY_START in config.TIMEZONE
   const { date: day } = await promptForDates(['date']);
-  const date = dateToUtc(`${day}T${DAY_START}`);
-  const dayBeforeDate = subDays(date, 1);
+  const startOfDay = dateToUtc(`${day}T${DAY_START}`);
+  const endOfDay = addDays(startOfDay, 1);
   const { group } = await promptForTogglGroup();
   const uids = group ? await getGroupUids(group) : null;
-  const entries = await getTogglEntriesBetween(dayBeforeDate, date, uids);
+  const entries = await getTogglEntriesBetween(startOfDay, endOfDay, uids);
 
   const parsed = parseEntriesForDetailed(entries);
 
