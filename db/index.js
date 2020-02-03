@@ -67,6 +67,10 @@ models.JiraIssue.belongsTo(models.JiraIssue, {
   foreignKey: 'epicId',
 });
 
+models.JiraIssue.belongsTo(models.JiraIssue, {
+  foreignKey: 'parentId',
+});
+
 // jiraissue <=> jiraissuecomponents <=> jiracomponent
 models.JiraIssue.belongsToMany(models.JiraComponent, {
   through: 'jiraissuecomponents',
@@ -165,6 +169,19 @@ const getJiraIssuesWithEpics = () =>
     attributes: ['id', 'epicKey'],
   }).then(issues => issues.map(i => i.get()));
 
+// get jira issues that have a parent key
+// but aren't linked to a parent issue yet
+const getJiraIssuesWithParents = () =>
+  models.JiraIssue.findAll({
+    where: {
+      parentKey: {
+        [Sequelize.Op.ne]: null,
+      },
+      parentId: null,
+    },
+    attributes: ['id', 'parentKey'],
+  }).then(issues => issues.map(i => i.get()));
+
 
 // link togglentries to a jiraissue
 const updateTogglEntryIssue = (togglEntryIds, issueId) =>
@@ -207,6 +224,17 @@ const updateJiraIssueEpic = (jiraIssueIds, epicId) =>
     },
   );
 
+const updateJiraIssueParent = (jiraIssueIds, parentId) =>
+  models.JiraIssue.update({
+    parentId,
+  }, {
+    where: {
+      id: {
+        [Sequelize.Op.in]: [].concat(jiraIssueIds),
+      },
+    },
+  });
+
 const forceSyncDB = () => sequelize.sync({ force: true });
 
 // get all Toggl Entries between 2 timestamps.
@@ -246,7 +274,6 @@ const removeTogglEntriesBetween = (from, to) =>
 
 const createJiraIssue = async issue => {
   await models.JiraIssueType.create(issue.issueType).catch(ignoreUniqueErrors);
-
   await models.JiraProject.create(issue.project).catch(ignoreUniqueErrors);
 
   if (issue.impact) {
@@ -352,9 +379,11 @@ module.exports = {
   getTogglEntriesBetween,
   removeTogglEntriesBetween,
   getJiraIssuesWithEpics,
+  getJiraIssuesWithParents,
   updateTogglEntryIssue,
   flagEntriesWithBadIssueKey,
   updateJiraIssueEpic,
+  updateJiraIssueParent,
   createJiraIssue,
   forceSyncDB,
 };

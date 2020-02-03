@@ -23,6 +23,7 @@ const {
   pullTogglEntries,
   pullJiraIssues,
   pullJiraEpics,
+  pullJiraParents,
 } = require('./lib/methods');
 const log = require('./lib/log');
 
@@ -46,6 +47,10 @@ const showtime = async () => {
   // pull missing jira epics
   log.info('pulling jira epics');
   await pullJiraEpics();
+
+  // pull missing parents
+  log.info('pulling jira parents');
+  await pullJiraParents();
 
   log.info('done :)');
 };

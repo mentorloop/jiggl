@@ -7,7 +7,7 @@ const {
 } = require('./lib/config');
 const {
   getIssuesForItems,
-
+  getIssueFromServer,
   replaceIssuesWithParents,
   replaceIssuesWithEpics,
 } = require('./lib/jira');
@@ -170,6 +170,15 @@ async function pullTogglEntriesForDates() {
   return pullTogglEntries(dates);
 }
 
+async function getSingleJiraIssue() {
+  inquirer.prompt([{
+    name: 'key',
+    message: 'Issue Key',
+  }])
+  .then(({ key }) => getIssueFromServer(key))
+  .then(console.log);
+}
+
 
 async function runSummary() {
   const dates = await promptForDates();
@@ -236,15 +245,17 @@ const begin = async () => {
       {
         type: 'list',
         choices: [
+          'Daily',
           'Pull Toggl Entries',
           'Pull Jira Issues',
           'Pull Epics',
           'Pull Toggl Groups',
-          'Daily',
+          'Pull Single Jira Issue',
           'Last Month',
           'Summary',
           'Detailed',
           'Force-Sync DB',
+
         ],
         name: 'report',
         message: 'what report do you want to run?',
@@ -270,6 +281,8 @@ const begin = async () => {
           return runDetailed();
         case 'Force-Sync DB':
           return forceSyncDB();
+        case 'Pull Single Jira Issue':
+          return getSingleJiraIssue();
         default:
           return;
       }

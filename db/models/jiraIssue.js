@@ -35,11 +35,23 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
+      isRoadmapItem: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+      },
       epicKey: {
         type: DataTypes.TEXT,
         allowNull: true,
       },
       epicId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
+      parentKey: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
+      parentId: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
