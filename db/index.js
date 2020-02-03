@@ -158,7 +158,7 @@ const getTogglEntriesWithIssueKey = () =>
 
 // get all jira issues that have an epic key
 // but aren't yet linked to an epic
-const getJiraIssuesWithEpics = () =>
+const getJiraIssuesWithUnlinkedEpics = () =>
   models.JiraIssue.findAll({
     where: {
       epicKey: {
@@ -171,7 +171,7 @@ const getJiraIssuesWithEpics = () =>
 
 // get jira issues that have a parent key
 // but aren't linked to a parent issue yet
-const getJiraIssuesWithParents = () =>
+const getJiraIssuesWithUnlinkedParents = () =>
   models.JiraIssue.findAll({
     where: {
       parentKey: {
@@ -378,8 +378,8 @@ module.exports = {
   getTogglEntriesWithIssueKey,
   getTogglEntriesBetween,
   removeTogglEntriesBetween,
-  getJiraIssuesWithEpics,
-  getJiraIssuesWithParents,
+  getJiraIssuesWithUnlinkedEpics,
+  getJiraIssuesWithUnlinkedParents,
   updateTogglEntryIssue,
   flagEntriesWithBadIssueKey,
   updateJiraIssueEpic,
