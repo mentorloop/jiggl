@@ -31,7 +31,7 @@
       alowNull: false,
     },
     dur: {
-      type: DataTypes.INTEGER,
+      type: DataTypes.BIGINT,
       allowNull: false,
     },
     hours: {
