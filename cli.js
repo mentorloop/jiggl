@@ -17,13 +17,14 @@ const {
   updateTogglGroups,
 } = require('./lib/toggl');
 const {
-  lastSevenDays
+  lastXDays,
 } = require('./lib/util');
 const {
   pullTogglEntries,
   pullJiraIssues,
   pullJiraEpics,
   pullJiraParents,
+  updatePropertiesFromParentsAndEpics,
 } = require('./lib/methods');
 const log = require('./lib/log');
 
@@ -38,7 +39,7 @@ const showtime = async () => {
 
   // pull the last week
   log.info('pulling toggl entries');
-  await pullTogglEntries(lastSevenDays());
+  await pullTogglEntries(lastXDays(7));
 
   // pull missing jira issues
   log.info('pulling jira issues');
@@ -51,6 +52,9 @@ const showtime = async () => {
   // pull missing parents
   log.info('pulling jira parents');
   await pullJiraParents();
+
+  log.info('updating issues from parents & epics');
+  await updatePropertiesFromParentsAndEpics();
 
   log.info('done :)');
 };

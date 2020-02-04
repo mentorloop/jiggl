@@ -34,6 +34,19 @@ const models = {
   JiraProductLabel: sequelize.import(__dirname + '/models/jiraProductLabel'),
 };
 
+const getModels = models => models.map(m => m.get());
+
+const notNull = {
+  [Sequelize.Op.ne]: null,
+};
+
+// get distinct column values from a table
+// https://github.com/sequelize/sequelize/issues/2996
+const distinct = (model, columnName) => model.findAll({
+    attributes: [columnName],
+    group: columnName,
+  }).then(r => r.map(x => x.get(columnName)));
+
 
 // togglentry.uid => toggleusers.id
 models.TogglEntry.belongsTo(models.TogglUser, {
@@ -65,10 +78,12 @@ models.JiraIssue.belongsTo(models.JiraImpact, {
 
 models.JiraIssue.belongsTo(models.JiraIssue, {
   foreignKey: 'epicId',
+  as: 'epic',
 });
 
 models.JiraIssue.belongsTo(models.JiraIssue, {
   foreignKey: 'parentId',
+  as: 'parent',
 });
 
 // jiraissue <=> jiraissuecomponents <=> jiracomponent
@@ -148,40 +163,33 @@ models.TogglUser.belongsToMany(models.TogglGroup, {
 const getTogglEntriesWithIssueKey = () =>
   models.TogglEntry.findAll({
     where: {
-      issueKey: {
-        [Sequelize.Op.ne]: null,
-      },
+      issueKey: notNull,
       issueId: null,
     },
     attributes: ['id', 'issueKey'],
-  }).then(entries => entries.map(e => e.get()));
+  }).then(getModels);
 
 // get all jira issues that have an epic key
 // but aren't yet linked to an epic
 const getJiraIssuesWithUnlinkedEpics = () =>
   models.JiraIssue.findAll({
     where: {
-      epicKey: {
-        [Sequelize.Op.ne]: null,
-      },
-      epicId: null,
+      epicKey: notNull,
+      // epicId: null,
     },
     attributes: ['id', 'epicKey'],
-  }).then(issues => issues.map(i => i.get()));
+  }).then(getModels);
 
 // get jira issues that have a parent key
 // but aren't linked to a parent issue yet
 const getJiraIssuesWithUnlinkedParents = () =>
   models.JiraIssue.findAll({
     where: {
-      parentKey: {
-        [Sequelize.Op.ne]: null,
-      },
-      parentId: null,
+      parentKey: notNull,
+      // parentId: null,
     },
     attributes: ['id', 'parentKey'],
-  }).then(issues => issues.map(i => i.get()));
-
+  }).then(getModels);
 
 // link togglentries to a jiraissue
 const updateTogglEntryIssue = (togglEntryIds, issueId) =>
@@ -198,17 +206,19 @@ const updateTogglEntryIssue = (togglEntryIds, issueId) =>
     },
   );
 
-const flagEntriesWithBadIssueKey = (togglEntryIds) =>
-  models.TogglEntry.update({
-    error: 'BAD_ISSUE_KEY',
-  }, {
+const flagEntriesWithBadIssueKey = togglEntryIds =>
+  models.TogglEntry.update(
+    {
+      error: 'BAD_ISSUE_KEY',
+    },
+    {
       where: {
         id: {
           [Sequelize.Op.in]: [].concat(togglEntryIds),
         },
       },
     },
-);
+  );
 
 const updateJiraIssueEpic = (jiraIssueIds, epicId) =>
   models.JiraIssue.update(
@@ -225,15 +235,18 @@ const updateJiraIssueEpic = (jiraIssueIds, epicId) =>
   );
 
 const updateJiraIssueParent = (jiraIssueIds, parentId) =>
-  models.JiraIssue.update({
-    parentId,
-  }, {
-    where: {
-      id: {
-        [Sequelize.Op.in]: [].concat(jiraIssueIds),
+  models.JiraIssue.update(
+    {
+      parentId,
+    },
+    {
+      where: {
+        id: {
+          [Sequelize.Op.in]: [].concat(jiraIssueIds),
+        },
       },
     },
-  });
+  );
 
 const forceSyncDB = () => sequelize.sync({ force: true });
 
@@ -242,11 +255,13 @@ const forceSyncDB = () => sequelize.sync({ force: true });
 const getTogglEntriesBetween = (from, to, uids = null) =>
   models.TogglEntry.findAll({
     where: {
-      ...(uids ? {
-        uid: {
-          [Sequelize.Op.in]: uids,
-        },
-      } : {}),
+      ...(uids
+        ? {
+            uid: {
+              [Sequelize.Op.in]: uids,
+            },
+          }
+        : {}),
       start: {
         [Sequelize.Op.between]: [from, to],
       },
@@ -268,11 +283,41 @@ const removeTogglEntriesBetween = (from, to) =>
     where: {
       start: {
         [Sequelize.Op.between]: [from, to],
-      }
+      },
     },
   });
 
-const createJiraIssue = async issue => {
+
+/**
+ * Update the properties of a Jira issue from a related issue,
+ * ie, a Parent or an Epic.
+ * This allows us to set flags like Is Roadmap Item or Product Label
+ * on an Epic or a Parent, and bubble those values down to the related
+ * issues for analysis.
+ * @param  {Object} selector     Sequelize selector for JiraIssues
+ * @param  {JiraIssue} relatedIssue
+ */
+const updateJiraIssuesFromRelatedIssue = (selector, relatedIssue) => {
+  // todo - update more fields
+  const epicId = relatedIssue.get('epicId');
+  const updateQuery = {
+    isRoadmapItem: relatedIssue.get('isRoadmapItem'),
+    ...(epicId ? { epicId } : {})
+  };
+
+  console.log({
+    selector,
+    updateQuery,
+  });
+
+  return models.JiraIssue.update(updateQuery, {
+    where: selector,
+  });
+};
+
+// given a parsed Jira Issue from the remote API,
+// create a JiraIssue and all related models.
+const createJiraIssue = async (issue) => {
   await models.JiraIssueType.create(issue.issueType).catch(ignoreUniqueErrors);
   await models.JiraProject.create(issue.project).catch(ignoreUniqueErrors);
 
@@ -342,13 +387,13 @@ const createJiraIssue = async issue => {
     ),
   );
 
-  models.JiraIssue.findOrCreate({
-    where: {
-      id: issue.id,
-    },
-    defaults: definedFieldsOnly(issue, models.JiraIssue),
-  })
-    .then(getModel)
+  log.debug('JiraIssue.upsert', issue);
+  models.JiraIssue.upsert(definedFieldsOnly(issue, models.JiraIssue))
+    .then(() => models.JiraIssue.findOne({
+        where: {
+          id: issue.id,
+        },
+      }))
     .then(savedIssue =>
       savedIssue
         .setComponents(components)
@@ -360,21 +405,28 @@ const createJiraIssue = async issue => {
 };
 
 
-const connect = () => Promise.resolve().then(() => {
-  log.info('Connecting to database...');
-  return sequelize.sync({ force: false })
-    .then(() => log.info('Connected to database'))
-}).catch(error => {
-  log.info('Error with sequelize.sync()');
-  log.error(error);
-  throw error;
-});
+const connect = () =>
+  Promise.resolve()
+    .then(() => {
+      log.info('Connecting to database...');
+      return sequelize
+        .sync({ force: false })
+        .then(() => log.info('Connected to database'));
+    })
+    .catch(error => {
+      log.info('Error with sequelize.sync()');
+      log.error(error);
+      throw error;
+    });
 
 const connection = connect();
 
 module.exports = {
   connection,
   models,
+  getModels,
+  notNull,
+  distinct,
   getTogglEntriesWithIssueKey,
   getTogglEntriesBetween,
   removeTogglEntriesBetween,
@@ -385,5 +437,6 @@ module.exports = {
   updateJiraIssueEpic,
   updateJiraIssueParent,
   createJiraIssue,
+  updateJiraIssuesFromRelatedIssue,
   forceSyncDB,
 };
