@@ -8,11 +8,16 @@
   },
   "dependencies": {
     "date-fns": "^2.2.1",
+    "date-fns-tz": "^1.0.8",
     "dotenv": "^8.0.0",
     "inquirer": "^7.0.0",
     "inquirer-datepicker-prompt": "^0.4.2",
     "lodash": "^4.17.15",
-    "node-fetch": "^2.6.0"
+    "node-fetch": "^2.6.0",
+    "pg": "^7.12.1",
+    "pg-hstore": "^2.3.3",
+    "sequelize": "^5.21.2",
+    "winston": "^3.2.1"
   },
   "devDependencies": {
     "eslint": "^6.4.0",

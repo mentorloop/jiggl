@@ -1,26 +1,49 @@
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
+const { addDays } = require('date-fns');
 
 const {
+  DAY_START
+} = require('./lib/config');
+const {
   getIssuesForItems,
+  getIssueFromServer,
   replaceIssuesWithParents,
   replaceIssuesWithEpics,
 } = require('./lib/jira');
-const { getSummary, getDetailed } = require('./lib/toggl');
+const {
+  getSummary,
+  getDetailed,
+  parseDetailedReport,
+  parseEntriesForDetailed,
+  updateTogglGroups,
+} = require('./lib/toggl');
 const { editReport } = require('./lib/reports');
 const {
-  lastBusinessDay,
   lastMonth,
   twoDP,
   useIssueTitles,
   mergeItems,
   compose,
   formatTogglDate,
+
+  dateToUtc,
 } = require('./lib/util');
 const Doc = require('./lib/doc');
+const {
+  connection,
+  models,
+  getTogglEntriesBetween,
+  forceSyncDB,
+} = require('./db');
+
+const {
+  pullTogglEntries,
+  pullJiraIssues,
+  pullJiraEpics,
+} = require('./lib/methods');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
-
 
 const cleanItems = items =>
   items.map(({ title, time, percent }) => ({
@@ -43,7 +66,10 @@ async function processSummary(report, opts) {
   const issues = (await getIssuesForItems(report.items)).filter(
     item => item.issueKey,
   );
-  const issuesWithParents = compose(mergeItems, useIssueTitles)(await replaceIssuesWithParents(issues));
+  const issuesWithParents = compose(
+    mergeItems,
+    useIssueTitles,
+  )(await replaceIssuesWithParents(issues));
   const epicIssues = mergeItems(await replaceIssuesWithEpics(issues));
 
   const projects = await editReport(report.projects);
@@ -52,7 +78,8 @@ async function processSummary(report, opts) {
 
   process.stdout.write('\033c');
 
-  const dateRange = opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
+  const dateRange =
+    opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
   const title = `Toggl Summary ${dateRange}`;
   console.log(title);
   console.log('\n\n');
@@ -62,36 +89,31 @@ async function processSummary(report, opts) {
   printReport('Features', features, 10);
 }
 
-async function processDetailed(report, opts) {
-  // fetch issues
-  for (let userSummary of report.items) {
-    const itemsWithIssues = await getIssuesForItems(userSummary.items);
-    userSummary.items = itemsWithIssues;
-  }
-
+async function processDetailed(entries, opts) {
   const doc = new Doc();
 
-  const dateRange = opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
+  const dateRange =
+    opts.since === opts.until ? opts.since : `${opts.since} - ${opts.until}`;
   const title = `Toggl Summary ${dateRange}`;
 
   doc.log(title);
   doc.log(underline(title));
   doc.linebreak();
   const usersWithProblems = new Set();
-  report.items.forEach(userSummary => {
-    const title = `${userSummary.user}: ${userSummary.time}`;
+  entries.forEach(userSummary => {
+    const title = `${userSummary.user}: ${userSummary.total}`;
     doc.log(title);
     doc.log(underline(title, '-'));
-    useIssueTitles(userSummary.items).forEach(item => {
-      const title = item.issue
-        ? `[${item.issue.key}] ${item.issue.summary}`
-        : `* ${item.title || 'NO DESCRIPTION'}`;
-      const { project, time } = item;
+    useIssueTitles(userSummary.entries).forEach(entry => {
+      const title = entry.jiraissue
+        ? `[${entry.jiraissue.key}] ${entry.jiraissue.summary}`
+        : `* ${entry.description || 'NO DESCRIPTION'}`;
+      const { project, hours } = entry;
       const projectName = project
         ? project.replace(/^Dev - /, '')
         : 'NO PROJECT';
-      doc.log(`${title} - ${twoDP(time)} (${projectName})`);
-      if (!project || !item.title) {
+      doc.log(`${title} - ${twoDP(hours)} (${projectName})`);
+      if (!project || !entry.description) {
         usersWithProblems.add(userSummary.user);
       }
     });
@@ -117,11 +139,46 @@ async function runLastMonth() {
   return processSummary(report, dates);
 }
 
-async function runYesterday() {
-  const yesterday = lastBusinessDay();
-  const report = await getDetailed(yesterday);
-  return processDetailed(report, yesterday);
+const getGroupUids = (id) => models.TogglGroup.findOne({
+  where: {
+    id,
+  },
+  include: ['users']
+}).then(group => group.users.map(user => user.get('id')));
+
+async function runDaily() {
+  // date is config.DAY_START in config.TIMEZONE
+  const { date: day } = await promptForDates(['date']);
+  const startOfDay = dateToUtc(`${day}T${DAY_START}`);
+  const endOfDay = addDays(startOfDay, 1);
+  const { group } = await promptForTogglGroup();
+  const uids = group ? await getGroupUids(group) : null;
+  const entries = await getTogglEntriesBetween(startOfDay, endOfDay, uids);
+
+  const parsed = parseEntriesForDetailed(entries);
+
+  return processDetailed(parsed, {
+    since: day,
+    until: day,
+  });
 }
+
+
+// prompt for a date range and pull toggl entries
+async function pullTogglEntriesForDates() {
+  const dates = await promptForDates();
+  return pullTogglEntries(dates);
+}
+
+async function getSingleJiraIssue() {
+  inquirer.prompt([{
+    name: 'key',
+    message: 'Issue Key',
+  }])
+  .then(({ key }) => getIssueFromServer(key))
+  .then(console.log);
+}
+
 
 async function runSummary() {
   const dates = await promptForDates();
@@ -131,9 +188,11 @@ async function runSummary() {
 
 async function runDetailed() {
   const dates = await promptForDates();
-  const report = await getDetailed(dates);
+  const report = await getDetailed(dates).then(parseDetailedReport);
   return processDetailed(report, dates);
 }
+
+
 
 const dateQuestion = {
   type: 'datetime',
@@ -142,45 +201,93 @@ const dateQuestion = {
   format: ['yyyy', '-', 'mm', '-', 'dd'],
 };
 
-const promptForDates = () =>
+const promptForDates = (names = ['since', 'until']) =>
+  inquirer
+    .prompt(
+      names.map(name => ({
+        ...dateQuestion,
+        name,
+        message: name,
+      })),
+    )
+    .then(dates =>
+      names.reduce(
+        (acc, date) => ({
+          ...acc,
+          [date]: formatTogglDate(dates[date]),
+        }),
+        {},
+      ),
+    );
+
+const promptForTogglGroup = () =>
+  models.TogglGroup.findAll()
+  .then((groups) => inquirer.prompt([
+    {
+      name: 'group',
+      type: 'list',
+      choices: [{
+          name: 'none',
+          value: null,
+        }].concat(groups.map(({ name, id }) => ({
+          name,
+          value: id,
+        }))),
+      message: 'filter by toggl group?',
+    }]));
+
+
+
+const begin = async () => {
+  await connection;
   inquirer
     .prompt([
       {
-        ...dateQuestion,
-        name: 'since',
-        message: 'Since',
-      },
-      {
-        ...dateQuestion,
-        name: 'until',
-        message: 'Until',
+        type: 'list',
+        choices: [
+          'Daily',
+          'Pull Toggl Entries',
+          'Pull Jira Issues',
+          'Pull Epics',
+          'Pull Toggl Groups',
+          'Pull Single Jira Issue',
+          'Last Month',
+          'Summary',
+          'Detailed',
+          'Force-Sync DB',
+
+        ],
+        name: 'report',
+        message: 'what report do you want to run?',
       },
     ])
-    .then(({ since, until }) => ({
-      since: formatTogglDate(since),
-      until: formatTogglDate(until),
-    }));
+    .then(({ report }) => {
+      switch (report) {
+        case 'Pull Toggl Entries':
+          return pullTogglEntriesForDates();
+        case 'Pull Jira Issues':
+          return pullJiraIssues();
+        case 'Pull Epics':
+          return pullJiraEpics();
+        case 'Pull Toggl Groups':
+          return updateTogglGroups();
+        case 'Daily':
+          return runDaily();
+        case 'Last Month':
+          return runLastMonth();
+        case 'Summary':
+          return runSummary();
+        case 'Detailed':
+          return runDetailed();
+        case 'Force-Sync DB':
+          return forceSyncDB();
+        case 'Pull Single Jira Issue':
+          return getSingleJiraIssue();
+        default:
+          return;
+      }
+    });
+}
 
-inquirer
-  .prompt([
-    {
-      type: 'list',
-      choices: ['Yesterday', 'Last Month', 'Summary', 'Detailed'],
-      name: 'report',
-      message: 'what report do you want to run?',
-    },
-  ])
-  .then(({ report }) => {
-    switch (report) {
-      case 'Last Month':
-        return runLastMonth();
-      case 'Yesterday':
-        return runYesterday();
-      case 'Summary':
-        return runSummary();
-      case 'Detailed':
-        return runDetailed();
-      default:
-        return;
-    }
-  });
+begin();
+
