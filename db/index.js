@@ -404,7 +404,6 @@ const createJiraIssue = async (issue) => {
     );
 };
 
-
 const connect = () =>
   Promise.resolve()
     .then(() => {

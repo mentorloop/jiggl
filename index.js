@@ -26,7 +26,6 @@ const {
   mergeItems,
   compose,
   formatTogglDate,
-
   dateToUtc,
 } = require('./lib/util');
 const Doc = require('./lib/doc');
@@ -35,12 +34,14 @@ const {
   models,
   getTogglEntriesBetween,
   forceSyncDB,
+  createJiraIssue,
 } = require('./db');
 
 const {
   pullTogglEntries,
   pullJiraIssues,
   pullJiraEpics,
+  updatePropertiesFromParentsAndEpics,
 } = require('./lib/methods');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
@@ -179,6 +180,14 @@ async function getSingleJiraIssue() {
   .then(console.log);
 }
 
+async function updateSingleJiraIssue() {
+  inquirer.prompt([{
+    name: 'key',
+    message: 'Issue Key',
+  }])
+  .then(({ key }) => getIssueFromServer(key))
+  .then(createJiraIssue);
+}
 
 async function runSummary() {
   const dates = await promptForDates();
@@ -255,7 +264,8 @@ const begin = async () => {
           'Summary',
           'Detailed',
           'Force-Sync DB',
-
+          'Update issue',
+          'Update from parents and epics',
         ],
         name: 'report',
         message: 'what report do you want to run?',
@@ -283,6 +293,10 @@ const begin = async () => {
           return forceSyncDB();
         case 'Pull Single Jira Issue':
           return getSingleJiraIssue();
+        case 'Update issue':
+          return updateSingleJiraIssue();
+        case 'Update from parents and epics':
+          return updatePropertiesFromParentsAndEpics();
         default:
           return;
       }
