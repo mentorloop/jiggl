@@ -305,11 +305,6 @@ const updateJiraIssuesFromRelatedIssue = (selector, relatedIssue) => {
     ...(epicId ? { epicId } : {})
   };
 
-  console.log({
-    selector,
-    updateQuery,
-  });
-
   return models.JiraIssue.update(updateQuery, {
     where: selector,
   });
