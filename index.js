@@ -1,10 +1,7 @@
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
-const { addDays, addBusinessDays, format } = require('date-fns');
+const { addDays, addBusinessDays } = require('date-fns');
 
-const {
-  DAY_START
-} = require('./lib/config');
 const {
   updateTogglGroups,
 } = require('./lib/toggl');
@@ -15,8 +12,8 @@ const {
   printTogglReport,
 } = require('./lib/reports');
 const {
-  formatTogglDate,
-  dateToUtc,
+  dateToTogglDate,
+  togglDateToDate,
 } = require('./lib/util');
 const {
   connection,
@@ -42,35 +39,40 @@ const getGroupUserIds = (id) => models.TogglGroup.findOne({
   include: ['users']
 }).then(group => group.users.map(user => user.get('id')));
 
+
+// print a report of toggl entries between startDate and endDate,
+// optionally filtering to a specific group of users.
+const runTogglReport = async (startDate, endDate, group = null) => {
+  group = group || await promptForTogglGroup();
+  const uids = group ? await getGroupUserIds(group) : null;
+  const entries = await getTogglEntriesBetween(startDate, endDate, uids);
+  return printTogglReport(entries, {
+    since: dateToTogglDate(startDate),
+    until: dateToTogglDate(endDate),
+  });
+};
+
+
+// run a daily toggl report
 async function runDaily() {
-  // date is config.DAY_START in config.TIMEZONE
   const { date: day } = await promptForDates(['date']);
-  const startOfDay = dateToUtc(`${day}T${DAY_START}`);
+  const startOfDay = togglDateToDate(day);
   const endOfDay = addDays(startOfDay, 1);
   const { group } = await promptForTogglGroup();
-  const uids = group ? await getGroupUserIds(group) : null;
-  const entries = await getTogglEntriesBetween(startOfDay, endOfDay, uids);
-  return printTogglReport(entries, {
-    since: day,
-    until: day,
-  });
+  return runTogglReport(startOfDay, endOfDay, group);
 }
 
+// run a daily toggl report for the last business day
 async function runLastDaily() {
   const now = new Date();
-  const lastBusinessDay = addBusinessDays(now, -1);
-  const startOfLastBusinessDay = dateToUtc(`${format(lastBusinessDay, 'yyyy-MM-dd')}T${DAY_START}`);
+  const lastBusinessDay = dateToTogglDate(addBusinessDays(now, -1));
+  console.log(lastBusinessDay);
+
+  const startOfLastBusinessDay = togglDateToDate(lastBusinessDay);
+  console.log(startOfLastBusinessDay);
   const endOfLastBusinessDay = addDays(startOfLastBusinessDay, 1);
   const { group } = await promptForTogglGroup();
-
-  const uids = group ? await getGroupUserIds(group) : null;
-
-  const entries = await getTogglEntriesBetween(startOfLastBusinessDay, endOfLastBusinessDay, uids);
-
-  return printTogglReport(entries, {
-    since: now,
-    until: now,
-  });
+  return runTogglReport(startOfLastBusinessDay, endOfLastBusinessDay, group);
 }
 
 
@@ -116,26 +118,23 @@ const dateQuestion = {
 };
 
 /**
- * Use inquirer to prompt a user for a date range.
- * Pass an array of names to prompt the user for,
- * defaults to 'since' and 'until.'
- * @param  {Array}  names
- * @return {Object} has keys matching names parameter
+ * Prompt the user to enter one or more dates,
+ * returned in the toggl date format.
+ * @param  {[String]}  names
+ * @return {Object} 1x key per value from names param
  */
 const promptForDates = (names = ['since', 'until']) =>
-  inquirer
-    .prompt(
-      names.map(name => ({
-        ...dateQuestion,
-        name,
-        message: name,
-      })),
-    )
-    .then(dates =>
+  inquirer.prompt(
+    names.map(name => ({
+      ...dateQuestion,
+      name,
+      message: name,
+    }))
+  ).then(responses =>
       names.reduce(
         (acc, date) => ({
           ...acc,
-          [date]: formatTogglDate(dates[date]),
+          [date]: dateToTogglDate(responses[date]),
         }),
         {},
       ),
@@ -164,18 +163,17 @@ const promptForTogglGroup = () =>
 
 
 const thingsToDo = {
-  'Last Day': runLastDaily,
-  'Daily': runDaily,
+  'Last Business Day': runLastDaily,
+  'Daily report': runDaily,
   'Fetch Toggl Entries': pullTogglEntriesForDates,
-  'Pull Jira Issues': pullJiraIssues,
-  'Pull Epics': pullJiraEpics,
-  'Pull Toggl Groups': updateTogglGroups,
+  'Sync Jira Issues': pullJiraIssues,
+  'Sync Epics': pullJiraEpics,
+  'Sync Toggl Groups': updateTogglGroups,
+  'Print single Jira issue': getSingleJiraIssue,
+  'Update single Jira issue': updateSingleJiraIssue,
+  'Update all issues from parents/epics': updatePropertiesFromParentsAndEpics,
   'Force-Sync DB': forceSyncDB,
-  'Pull Single Jira Issue': getSingleJiraIssue,
-  'Update issue': updateSingleJiraIssue,
-  'Update from parents and epics': updatePropertiesFromParentsAndEpics,
 };
-
 
 const begin = async () => {
   await connection;
@@ -184,12 +182,12 @@ const begin = async () => {
       {
         type: 'list',
         choices: Object.keys(thingsToDo),
-        name: 'report',
-        message: 'what report do you want to run?',
+        name: 'action',
+        message: 'What would you like to do?',
       },
     ])
-    .then(({ report }) => {
-      const callback = thingsToDo[report] || (() => {});
+    .then(({ action }) => {
+      const callback = thingsToDo[action] || (() => {});
       return callback();
     });
 }
