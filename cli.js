@@ -37,19 +37,19 @@ const showtime = async () => {
   log.info('syncing toggl groups');
   await updateTogglGroups();
 
-  // pull the last week
+  // pull the last week of toggl entries
   log.info('pulling toggl entries');
   await pullTogglEntries(lastXDays(7));
 
-  // pull missing jira issues
+  // sync missing jira issues
   log.info('pulling jira issues');
   await pullJiraIssues();
 
-  // pull missing jira epics
+  // sync missing jira epics
   log.info('pulling jira epics');
   await pullJiraEpics();
 
-  // pull missing parents
+  // sync missing parents
   log.info('pulling jira parents');
   await pullJiraParents();
 
