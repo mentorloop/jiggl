@@ -28,6 +28,7 @@
   },
   "scripts": {
     "start": "node index.js",
+    "cron": "node cli.js",
     "test": "jest"
   },
   "author": "",

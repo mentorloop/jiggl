@@ -1,56 +1,45 @@
 # jiggl
 ### jira + toggl = jiggl
 
-Connect Jira to Toggl and print out reports.
+Pull data from Jira and Toggl into a database so you query it and build reports.
 
 
-## Todo
-- detailed reports aren't linking all issues?
-- summary report: % of tickets with a jira issue
-  - or % of time? or both
-- sqlite cache for jira issues
+## Why?
+
+1. We store time tracking data in Toggl
+2. We store various other data in Jira tickets
+3. We want to be able to correlate those two; ie, in December we spent X% of our time on Feature tickets and Y% on Support tickets.
+4. We want the flexibility of querying the data from a database rather than relying on Jira's built-in reports
 
 
+## How?
 
-## Report types
+Users simply prefix Toggl entries with a Jira issue key:
 
-There's two basic types of reports, Summary and Detailed.
+```
+APP-1420 Fix broken tests
+```
 
-
-### Summary report
-
-
-- Total time recorded
-- What was the project breakdown
-- What was the Jira issue breakdown (by parents)
-- What was the epic breakdown
-- % of tickets with a Jira issue
-- Can be interactively edited/aggregated (see *editing reports*)
+Then Jiggl will correlate that Toggl entry with the Jira issue.
 
 
-### Detailed report
+## Yeah but actually how?
 
-- Group by users
-- Aggregate time entries with the same name/project
-- Link to Jira issues
-- Highlight entries that can't be linked
-- Highlight entries with no description or project
+Schedule `npm run cron` to run periodically, and it will:
 
 
-### Yesterday
-A detailed report for the last business day.
+- Sync Toggl Groups & Users to your DB
+- Sync all Toggl entries from the last 7 days to your DB
+- Try to parse a Jira issue key from the entry titles
+- Hit the Jira API to fetch issues for all the parsed keys and pull those down to the DB
+- Sync any Jira Epics and parent issues that your issues belong to
 
 
-### Last Month
-A summary report for the last calendar month.
+## Running it
 
+```
+npm install
+npm run cron
+```
 
-
-## Editing reports
-
-Summary reports can be interactively edited to merge/remove/rename entries.
-
-- For a list of 'items' with a .title and .time
-  - Remove one
-  - Merge with another one
-  - Rename it
+You can also run `npm start` to manually trigger individual parts of the process, including a basic text printout of toggl entries and their related jira issues from a time period.
