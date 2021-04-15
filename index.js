@@ -66,10 +66,7 @@ async function runDaily() {
 async function runLastDaily() {
   const now = new Date();
   const lastBusinessDay = dateToTogglDate(addBusinessDays(now, -1));
-  console.log(lastBusinessDay);
-
   const startOfLastBusinessDay = togglDateToDate(lastBusinessDay);
-  console.log(startOfLastBusinessDay);
   const endOfLastBusinessDay = addDays(startOfLastBusinessDay, 1);
   const { group } = await promptForTogglGroup();
   return runTogglReport(startOfLastBusinessDay, endOfLastBusinessDay, group);
