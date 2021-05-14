@@ -43,3 +43,17 @@ npm run cron
 ```
 
 You can also run `npm start` to manually trigger individual parts of the process, including a basic text printout of toggl entries and their related jira issues from a time period.
+
+
+## Last business day report
+
+Running the "last business day" report prints out all the Toggl entries for a group and flags whether anybody's logged anything without a description or a project. It's a useful thing to run each morning so people can easily see and fix up missing or incorrect entries, before they forget what they were doing.
+
+
+You can run `npm start -- lastdaily --group 94745` to run the last business day for Toggl group 94745. If you want to know what your Toggl group IDs are, run the "sync toggl groups" command it'll print them out.
+
+You can also set a SLACK_ENDPOINT (full https://hooks.slack.com/services/blah-blah-blah address) and SLACK_CHANNEL (including the hash) env var and pass `--output slack` to push the results straight to a Slack channel, like:
+
+```
+npm start -- lastdaily --group 94745 --output slack
+```
