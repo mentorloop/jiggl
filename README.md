@@ -25,7 +25,7 @@ Then Jiggl will correlate that Toggl entry with the Jira issue.
 
 ## Yeah but actually how?
 
-Schedule `npm run cron` to run periodically, and it will:
+Schedule `npm run sync` to run periodically, and it will:
 
 
 - Sync Toggl Groups & Users to your DB
@@ -34,15 +34,29 @@ Schedule `npm run cron` to run periodically, and it will:
 - Hit the Jira API to fetch issues for all the parsed keys and pull those down to the DB
 - Sync any Jira Epics and parent issues that your issues belong to
 
+## Installation
+
+```
+# clone the repository
+npm install
+```
+
 
 ## Running it
 
+To run the sync script (I recommend doing this as a cronjob),
+
 ```
-npm install
-npm run cron
+npm run sync
 ```
 
-You can also run `npm start` to manually trigger individual parts of the process, including a basic text printout of toggl entries and their related jira issues from a time period.
+To run the interactive menu, use:
+
+```
+npm start
+```
+
+This will allow you to manually trigger individual parts of the process, including a basic text printout of toggl entries and their related jira issues from a time period.
 
 
 ## Last business day report
