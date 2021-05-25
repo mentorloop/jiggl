@@ -29,7 +29,7 @@
   },
   "scripts": {
     "start": "node index.js",
-    "cron": "node cli.js",
+    "sync": "node sync.js",
     "test": "jest"
   },
   "author": "",
