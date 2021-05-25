@@ -1,6 +1,7 @@
 const inquirer = require('inquirer');
 const inquirerDatepicker = require('inquirer-datepicker-prompt');
 const { addDays, addBusinessDays } = require('date-fns');
+const minimist = require('minimist');
 
 const {
   updateTogglGroups,
@@ -10,6 +11,7 @@ const {
 } = require('./lib/jira');
 const {
   printTogglReport,
+  slackTogglReport,
 } = require('./lib/reports');
 const {
   dateToTogglDate,
@@ -30,14 +32,19 @@ const {
 } = require('./lib/methods');
 
 inquirer.registerPrompt('datetime', inquirerDatepicker);
-
+const argv = minimist(process.argv.slice(2));
 
 const getGroupUserIds = (id) => models.TogglGroup.findOne({
   where: {
     id,
   },
   include: ['users']
-}).then(group => group.users.map(user => user.get('id')));
+}).then(group => {
+  if (!group) {
+    throw new Error(`No Toggl group with ID ${id}`);
+  }
+  return group.users.map(user => user.get('id'));
+});
 
 
 // print a report of toggl entries between startDate and endDate,
@@ -46,7 +53,9 @@ const runTogglReport = async (startDate, endDate, group = null) => {
   group = group || await promptForTogglGroup();
   const uids = group ? await getGroupUserIds(group) : null;
   const entries = await getTogglEntriesBetween(startDate, endDate, uids);
-  return printTogglReport(entries, {
+
+  const printer = argv.output === 'slack' ? slackTogglReport : printTogglReport;
+  return printer(entries, {
     since: dateToTogglDate(startDate),
     until: dateToTogglDate(endDate),
   });
@@ -68,7 +77,7 @@ async function runLastDaily() {
   const lastBusinessDay = dateToTogglDate(addBusinessDays(now, -1));
   const startOfLastBusinessDay = togglDateToDate(lastBusinessDay);
   const endOfLastBusinessDay = addDays(startOfLastBusinessDay, 1);
-  const { group } = await promptForTogglGroup();
+  const group = argv.group || (await promptForTogglGroup()).group;
   return runTogglReport(startOfLastBusinessDay, endOfLastBusinessDay, group);
 }
 
@@ -159,7 +168,7 @@ const promptForTogglGroup = () =>
 
 
 
-const thingsToDo = {
+const commands = {
   'Last Business Day': runLastDaily,
   'Daily report': runDaily,
   'Fetch Toggl Entries': pullTogglEntriesForDates,
@@ -172,21 +181,29 @@ const thingsToDo = {
   'Force-Sync DB': forceSyncDB,
 };
 
-const begin = async () => {
-  await connection;
+const shortCommands = {
+  lastdaily:  runLastDaily,
+  daily: runDaily,
+};
+
+
+const promptForCommand = () =>
   inquirer
     .prompt([
       {
         type: 'list',
-        choices: Object.keys(thingsToDo),
+        choices: Object.keys(commands),
         name: 'action',
         message: 'What would you like to do?',
       },
     ])
-    .then(({ action }) => {
-      const callback = thingsToDo[action] || (() => {});
-      return callback();
-    });
+    .then(({ action }) => action);
+
+const begin = async () => {
+  await connection;
+  const command = argv._[0] || await promptForCommand();
+  const callback = commands[command] || shortCommands[command] || (() => console.log(`Unknown command: ${command}`));
+  callback();
 }
 
 begin();

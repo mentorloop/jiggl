@@ -1,13 +1,12 @@
 /**
- * jiggl cli
+ * jiggl/sync
  *
- * run some things automatically.
- * useful for running on a cron.
+ * sync the remote data sources with our local DB.
+ * useful to run as a cronjob.
  *
- * - update toggl groups
- * - get toggl entries for the last week
- * - pull jira issues
- * - pull epics
+ * - sync toggl groups and users
+ * - sync toggl entries for the last 7 days
+ * - sync jira issues, parents and epics
  */
 
 const {
