@@ -32,6 +32,7 @@ const models = {
   JiraUserType: sequelize.import(__dirname + '/models/jiraUserType'),
   JiraClient: sequelize.import(__dirname + '/models/jiraClient'),
   JiraProductLabel: sequelize.import(__dirname + '/models/jiraProductLabel'),
+  JiraSupportRequestType: sequelize.import(__dirname + '/models/jiraSupportRequestType'),
 };
 
 const getModels = models => models.map(m => m.get());
@@ -381,6 +382,10 @@ const createJiraIssue = async (issue) => {
       }).then(getModel),
     ),
   );
+
+  if (issue.supportRequestType) {
+    await models.JiraSupportRequestType.create(issue.supportRequestType).catch(ignoreUniqueErrors);
+  }
 
   log.debug('JiraIssue.upsert', issue);
   models.JiraIssue.upsert(definedFieldsOnly(issue, models.JiraIssue))
