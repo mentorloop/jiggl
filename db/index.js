@@ -87,6 +87,10 @@ models.JiraIssue.belongsTo(models.JiraIssue, {
   as: 'parent',
 });
 
+models.JiraIssue.belongsTo(models.JiraSupportRequestType, {
+  foreignKey: 'supportRequestTypeId',
+});
+
 // jiraissue <=> jiraissuecomponents <=> jiracomponent
 models.JiraIssue.belongsToMany(models.JiraComponent, {
   through: 'jiraissuecomponents',
@@ -321,6 +325,10 @@ const createJiraIssue = async (issue) => {
     await models.JiraImpact.create(issue.impact).catch(ignoreUniqueErrors);
   }
 
+  if (issue.supportRequestType) {
+    await models.JiraSupportRequestType.create(issue.supportRequestType).catch(ignoreUniqueErrors);
+  }
+
   const drivers = await Promise.all(
     issue.drivers.map(({ id, value }) =>
       models.JiraDriver.findOrCreate({
@@ -382,10 +390,6 @@ const createJiraIssue = async (issue) => {
       }).then(getModel),
     ),
   );
-
-  if (issue.supportRequestType) {
-    await models.JiraSupportRequestType.create(issue.supportRequestType).catch(ignoreUniqueErrors);
-  }
 
   log.debug('JiraIssue.upsert', issue);
   models.JiraIssue.upsert(definedFieldsOnly(issue, models.JiraIssue))

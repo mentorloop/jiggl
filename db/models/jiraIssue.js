@@ -55,7 +55,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
-      supportRequestType: {
+      supportRequestTypeId: {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
