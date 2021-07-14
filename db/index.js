@@ -32,6 +32,7 @@ const models = {
   JiraUserType: sequelize.import(__dirname + '/models/jiraUserType'),
   JiraClient: sequelize.import(__dirname + '/models/jiraClient'),
   JiraProductLabel: sequelize.import(__dirname + '/models/jiraProductLabel'),
+  JiraSupportRequestType: sequelize.import(__dirname + '/models/jiraSupportRequestType'),
 };
 
 const getModels = models => models.map(m => m.get());
@@ -84,6 +85,10 @@ models.JiraIssue.belongsTo(models.JiraIssue, {
 models.JiraIssue.belongsTo(models.JiraIssue, {
   foreignKey: 'parentId',
   as: 'parent',
+});
+
+models.JiraIssue.belongsTo(models.JiraSupportRequestType, {
+  foreignKey: 'supportRequestTypeId',
 });
 
 // jiraissue <=> jiraissuecomponents <=> jiracomponent
@@ -318,6 +323,10 @@ const createJiraIssue = async (issue) => {
 
   if (issue.impact) {
     await models.JiraImpact.create(issue.impact).catch(ignoreUniqueErrors);
+  }
+
+  if (issue.supportRequestType) {
+    await models.JiraSupportRequestType.create(issue.supportRequestType).catch(ignoreUniqueErrors);
   }
 
   const drivers = await Promise.all(

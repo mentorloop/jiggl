@@ -55,6 +55,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
+      supportRequestTypeId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
 
       // => parentId
       // => resolutionid
