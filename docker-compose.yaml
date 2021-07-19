@@ -1,0 +1,14 @@
+version: "3"
+
+services:
+  postgres:
+    container_name: jiggl_postgres
+    image: postgres:alpine
+    environment:
+      POSTGRES_USER: jiggluser
+      POSTGRES_PASSWORD: jigglpassword
+      POSTGRES_DB: jiggl
+    ports:
+      - "5432:5432"
+    volumes:
+      - "${HOME}/jiggl-data/:/var/lib/postgresql/data"
