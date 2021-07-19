@@ -14,6 +14,7 @@ const {
 } = require('./db');
 const {
   updateTogglGroups,
+  updateTogglTags,
 } = require('./lib/toggl');
 const {
   lastXDays,
@@ -35,6 +36,10 @@ const showtime = async () => {
   // sync the toggl groups
   log.info('syncing toggl groups');
   await updateTogglGroups();
+
+  // sync the toggl tags
+  log.info('syncing toggl tags');
+  await updateTogglTags();
 
   // pull the last week of toggl entries
   log.info('pulling toggl entries');
