@@ -23,6 +23,7 @@ const models = {
   TogglUser: sequelize.import(__dirname + '/models/togglUser'),
   TogglProject: sequelize.import(__dirname + '/models/togglProject'),
   TogglGroup: sequelize.import(__dirname + '/models/togglGroup'),
+  TogglTag: sequelize.import(__dirname + '/models/togglTag'),
   JiraIssue: sequelize.import(__dirname + '/models/jiraIssue'),
   JiraIssueType: sequelize.import(__dirname + '/models/jiraIssueType'),
   JiraProject: sequelize.import(__dirname + '/models/jiraProject'),
@@ -161,6 +162,18 @@ models.TogglUser.belongsToMany(models.TogglGroup, {
   through: 'togglgroupusers',
   foreignKey: 'userId',
   as: 'groups',
+});
+
+// togglentry <=> togglentrytags <=> toggltag
+models.TogglEntry.belongsToMany(models.TogglTag, {
+  through: 'togglentrytags',
+  foreignKey: 'entryId',
+  as: 'tags',
+});
+models.TogglTag.belongsToMany(models.TogglEntry, {
+  through: 'togglentrytags',
+  foreignKey: 'tagId',
+  as: 'entries',
 });
 
 // get toggl entries that have an issue key
