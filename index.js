@@ -5,6 +5,7 @@ const minimist = require('minimist');
 
 const {
   updateTogglGroups,
+  updateTogglTags,
 } = require('./lib/toggl');
 const {
   getIssueFromServer,
@@ -175,6 +176,7 @@ const commands = {
   'Sync Jira Issues': pullJiraIssues,
   'Sync Epics': pullJiraEpics,
   'Sync Toggl Groups': updateTogglGroups,
+  'Sync Toggl Tags': updateTogglTags,
   'Print single Jira issue': getSingleJiraIssue,
   'Update single Jira issue': updateSingleJiraIssue,
   'Update all issues from parents/epics': updatePropertiesFromParentsAndEpics,
